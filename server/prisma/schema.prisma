@@ -1,0 +1,268 @@
+// Splitwise Clone - Prisma Schema
+// 11 models: users, groups, memberships, expenses, splits, settlements,
+// csv_imports, import_items, anomaly_flags, import_decisions, activity_logs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USER ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdGroups      Group[]           @relation("GroupCreator")
+  memberships        GroupMembership[]
+  paidExpenses       Expense[]         @relation("ExpensePayer")
+  createdExpenses    Expense[]         @relation("ExpenseCreator")
+  expenseSplits      ExpenseSplit[]
+  payerSettlements   Settlement[]      @relation("SettlementPayer")
+  payeeSettlements   Settlement[]      @relation("SettlementPayee")
+  creatorSettlements Settlement[]      @relation("SettlementCreator")
+  csvImports         CsvImport[]
+  importDecisions    ImportDecision[]
+  activityLogs       ActivityLog[]
+
+  @@map("users")
+}
+
+// ─── GROUP ───────────────────────────────────────────────────────────────────
+
+model Group {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  baseCurrency String   @default("USD") @map("base_currency") @db.VarChar(3)
+  createdById  String   @map("created_by")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id])
+  memberships GroupMembership[]
+  expenses    Expense[]
+  settlements Settlement[]
+  csvImports  CsvImport[]
+
+  @@map("groups")
+}
+
+// ─── GROUP MEMBERSHIP (TEMPORAL) ─────────────────────────────────────────────
+
+model GroupMembership {
+  id       String    @id @default(uuid())
+  groupId  String    @map("group_id")
+  userId   String    @map("user_id")
+  joinedAt DateTime  @default(now()) @map("joined_at")
+  leftAt   DateTime? @map("left_at")
+  status   String    @default("active") @db.VarChar(20)
+  // status: 'active' | 'inactive'
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId, joinedAt])
+  @@index([groupId, status])
+  @@index([userId])
+  @@map("group_memberships")
+}
+
+// ─── EXPENSE (MULTI-CURRENCY) ────────────────────────────────────────────────
+
+model Expense {
+  id               String   @id @default(uuid())
+  groupId          String   @map("group_id")
+  paidById         String   @map("paid_by")
+  description      String
+  originalAmount   Decimal  @map("original_amount") @db.Decimal(12, 2)
+  originalCurrency String   @map("original_currency") @db.VarChar(3)
+  exchangeRate     Decimal  @default(1.0) @map("exchange_rate") @db.Decimal(12, 6)
+  normalizedAmount Decimal  @map("normalized_amount") @db.Decimal(12, 2)
+  splitType        String   @map("split_type") @db.VarChar(20)
+  // splitType: 'equal' | 'exact' | 'percentage' | 'shares'
+  expenseDate      DateTime @map("expense_date") @db.Date
+  createdById      String   @map("created_by")
+  importItemId     String?  @unique @map("import_item_id")
+  isDeleted        Boolean  @default(false) @map("is_deleted")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  group      Group         @relation(fields: [groupId], references: [id])
+  paidBy     User          @relation("ExpensePayer", fields: [paidById], references: [id])
+  createdBy  User          @relation("ExpenseCreator", fields: [createdById], references: [id])
+  importItem ImportItem?   @relation(fields: [importItemId], references: [id])
+  splits     ExpenseSplit[]
+
+  @@index([groupId, isDeleted])
+  @@index([groupId, expenseDate])
+  @@map("expenses")
+}
+
+// ─── EXPENSE SPLIT ───────────────────────────────────────────────────────────
+
+model ExpenseSplit {
+  id               String   @id @default(uuid())
+  expenseId        String   @map("expense_id")
+  userId           String   @map("user_id")
+  originalAmount   Decimal  @map("original_amount") @db.Decimal(12, 2)
+  normalizedAmount Decimal  @map("normalized_amount") @db.Decimal(12, 2)
+  percentage       Decimal? @db.Decimal(5, 2)
+  shares           Int?
+
+  // Relations
+  expense Expense @relation(fields: [expenseId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([expenseId])
+  @@index([userId])
+  @@map("expense_splits")
+}
+
+// ─── SETTLEMENT (MULTI-CURRENCY) ─────────────────────────────────────────────
+
+model Settlement {
+  id               String   @id @default(uuid())
+  groupId          String   @map("group_id")
+  payerId          String   @map("payer_id")
+  payeeId          String   @map("payee_id")
+  originalAmount   Decimal  @map("original_amount") @db.Decimal(12, 2)
+  originalCurrency String   @map("original_currency") @db.VarChar(3)
+  exchangeRate     Decimal  @default(1.0) @map("exchange_rate") @db.Decimal(12, 6)
+  normalizedAmount Decimal  @map("normalized_amount") @db.Decimal(12, 2)
+  settledAt        DateTime @default(now()) @map("settled_at")
+  createdById      String   @map("created_by")
+
+  // Relations
+  group     Group @relation(fields: [groupId], references: [id])
+  payer     User  @relation("SettlementPayer", fields: [payerId], references: [id])
+  payee     User  @relation("SettlementPayee", fields: [payeeId], references: [id])
+  createdBy User  @relation("SettlementCreator", fields: [createdById], references: [id])
+
+  @@index([groupId])
+  @@map("settlements")
+}
+
+// ─── CSV IMPORT ──────────────────────────────────────────────────────────────
+
+model CsvImport {
+  id           String   @id @default(uuid())
+  groupId      String   @map("group_id")
+  uploadedById String   @map("uploaded_by")
+  fileName     String   @map("file_name")
+  status       String   @default("processing") @db.VarChar(30)
+  // status: 'processing' | 'pending_review' | 'completed' | 'partially_completed' | 'failed'
+  totalRows    Int      @default(0) @map("total_rows")
+  validRows    Int      @default(0) @map("valid_rows")
+  flaggedRows  Int      @default(0) @map("flagged_rows")
+  approvedRows Int      @default(0) @map("approved_rows")
+  rejectedRows Int      @default(0) @map("rejected_rows")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  group      Group        @relation(fields: [groupId], references: [id])
+  uploadedBy User         @relation(fields: [uploadedById], references: [id])
+  items      ImportItem[]
+
+  @@index([groupId])
+  @@map("csv_imports")
+}
+
+// ─── IMPORT ITEM ─────────────────────────────────────────────────────────────
+
+model ImportItem {
+  id         String   @id @default(uuid())
+  importId   String   @map("import_id")
+  rowNumber  Int      @map("row_number")
+  rawData    Json     @map("raw_data")
+  parsedData Json?    @map("parsed_data")
+  status     String   @default("pending") @db.VarChar(20)
+  // status: 'pending' | 'clean' | 'flagged' | 'approved' | 'rejected' | 'error'
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  csvImport    CsvImport       @relation(fields: [importId], references: [id])
+  anomalyFlags AnomalyFlag[]
+  decisions    ImportDecision[]
+  expense      Expense?
+
+  @@index([importId])
+  @@map("import_items")
+}
+
+// ─── ANOMALY FLAG ────────────────────────────────────────────────────────────
+
+model AnomalyFlag {
+  id           String   @id @default(uuid())
+  importItemId String   @map("import_item_id")
+  anomalyType  String   @map("anomaly_type") @db.VarChar(30)
+  // anomalyType: 'duplicate_expense' | 'amount_outlier' | 'membership_violation' |
+  //              'future_dated' | 'missing_fields' | 'invalid_split' | 'unknown_participant'
+  severity     String   @db.VarChar(10)
+  // severity: 'error' | 'warning' | 'info'
+  details      String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  importItem ImportItem @relation(fields: [importItemId], references: [id])
+
+  @@index([importItemId])
+  @@map("anomaly_flags")
+}
+
+// ─── IMPORT DECISION ─────────────────────────────────────────────────────────
+
+model ImportDecision {
+  id           String   @id @default(uuid())
+  importItemId String   @map("import_item_id")
+  decision     String   @db.VarChar(10)
+  // decision: 'approve' | 'reject'
+  decidedById  String   @map("decided_by")
+  reason       String?
+  decidedAt    DateTime @default(now()) @map("decided_at")
+
+  // Relations
+  importItem ImportItem @relation(fields: [importItemId], references: [id])
+  decidedBy  User       @relation(fields: [decidedById], references: [id])
+
+  @@index([importItemId])
+  @@map("import_decisions")
+}
+
+// ─── ACTIVITY LOG ────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String   @db.VarChar(50)
+  // action: 'expense_created' | 'expense_updated' | 'expense_deleted' |
+  //         'member_added' | 'member_removed' | 'group_created' |
+  //         'settlement_recorded' | 'import_uploaded' | 'import_item_approved' |
+  //         'import_item_rejected' | 'import_finalized'
+  entityType String   @map("entity_type") @db.VarChar(20)
+  // entityType: 'expense' | 'group' | 'membership' | 'settlement' | 'import' | 'import_item'
+  entityId   String   @map("entity_id")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("activity_logs")
+}
