@@ -1,0 +1,94 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Build Outputs
+dist/
+build/
+.next/
+out/
+
+# Vite
+.vite/
+
+# Coverage
+coverage/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+
+# Runtime Files
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Render
+.render/
+
+# Vercel
+.vercel/
+
+# Uploads
+uploads/
+csv_uploads/
+
+# Import Reports
+import_reports/
+
+# Generated Files
+*.sqlite
+*.sqlite3
+
+# Test Results
+test-results/
+playwright-report/
+
+# Context Files (Optional)
+# Uncomment if you don't want AI planning docs public
+# contextForAI.md
+# HANDOFF.md
+
+# Secrets
+*.pem
+*.key
+*.crt
+
+# Mac
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs.db
+Desktop.ini
