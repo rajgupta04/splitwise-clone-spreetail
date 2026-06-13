@@ -22,6 +22,19 @@ const balancesController = {
       return next(error);
     }
   },
+
+  async getBalanceBreakdown(req, res, next) {
+    try {
+      const breakdown = await balancesService.getBalanceBreakdown(
+        req.params.groupId,
+        req.params.userId,
+        req.user.id
+      );
+      return ApiResponse.success(res, { breakdown });
+    } catch (error) {
+      return next(error);
+    }
+  },
 };
 
 module.exports = balancesController;

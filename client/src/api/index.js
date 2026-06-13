@@ -32,6 +32,7 @@ export const expensesApi = {
 export const balancesApi = {
   getGroupBalances: (groupId) => client.get(`/groups/${groupId}/balances`),
   getUserSummary: () => client.get('/balances/me'),
+  getBreakdown: (groupId, userId) => client.get(`/groups/${groupId}/balances/${userId}/breakdown`),
 };
 
 export const settlementsApi = {

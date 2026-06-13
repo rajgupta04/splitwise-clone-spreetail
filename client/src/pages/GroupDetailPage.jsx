@@ -6,7 +6,7 @@ import { formatCurrency, formatDate, getInitials, getAvatarColor } from '../util
 import { CURRENCIES } from '../utils/constants';
 import {
   ArrowLeft, Users, Plus, DollarSign, ArrowRightLeft,
-  UserPlus, UserMinus, Clock, Receipt, Trash2, History,
+  UserPlus, UserMinus, Clock, Receipt, Trash2, History, Upload,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -25,6 +25,8 @@ export default function GroupDetailPage() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showSettlement, setShowSettlement] = useState(false);
+  const [breakdownData, setBreakdownData] = useState(null);
+  const [breakdownUser, setBreakdownUser] = useState(null);
 
   useEffect(() => { loadAll(); }, [groupId]);
 
@@ -162,9 +164,18 @@ export default function GroupDetailPage() {
           <div className="animate-fadeIn">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold">Expenses</h2>
-              <button onClick={() => setShowAddExpense(true)} className="btn-primary text-sm">
-                <Plus size={16} /> Add Expense
-              </button>
+              <div className="flex gap-2">
+                <Link
+                  to={`/groups/${groupId}/import`}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition"
+                  style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
+                >
+                  <Upload size={16} /> Import CSV
+                </Link>
+                <button onClick={() => setShowAddExpense(true)} className="btn-primary text-sm">
+                  <Plus size={16} /> Add Expense
+                </button>
+              </div>
             </div>
             {expenses.length === 0 ? (
               <div className="glass-card p-8 text-center text-[var(--color-text-muted)]">
@@ -212,10 +223,20 @@ export default function GroupDetailPage() {
             <h2 className="font-semibold mb-4">Group Balances</h2>
             {balances ? (
               <div className="space-y-6">
-                {/* Member balances */}
+                {/* Member balances — clickable for drill-down */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {balances.memberBalances?.map((mb) => (
-                    <div key={mb.user.id} className="glass-card p-4 flex items-center gap-3">
+                    <div
+                      key={mb.user.id}
+                      className="glass-card p-4 flex items-center gap-3 cursor-pointer hover:border-[var(--color-primary)] transition"
+                      onClick={async () => {
+                        try {
+                          const res = await balancesApi.getBreakdown(groupId, mb.user.id);
+                          setBreakdownData(res.data.data.breakdown);
+                          setBreakdownUser(mb.user);
+                        } catch { /* ignore */ }
+                      }}
+                    >
                       <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white"
                         style={{ backgroundColor: getAvatarColor(mb.user.id) }}
@@ -224,6 +245,7 @@ export default function GroupDetailPage() {
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-sm">{mb.user.name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)]">Click for breakdown</p>
                       </div>
                       <span className={`font-semibold ${mb.balance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {mb.balance >= 0 ? '+' : ''}{formatCurrency(mb.balance, balances.currency)}
@@ -231,6 +253,51 @@ export default function GroupDetailPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Balance Breakdown Panel */}
+                {breakdownData && breakdownUser && (
+                  <div className="glass-card p-5 animate-fadeIn" style={{ borderLeft: '3px solid var(--color-primary)' }}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="font-semibold">{breakdownUser.name}'s Balance Breakdown</h3>
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          Net: <span className={breakdownData.netBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                            {breakdownData.netBalance >= 0 ? '+' : ''}{formatCurrency(breakdownData.netBalance, breakdownData.currency)}
+                          </span>
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { setBreakdownData(null); setBreakdownUser(null); }}
+                        className="text-xs text-[var(--color-text-muted)] hover:text-white"
+                      >✕ Close</button>
+                    </div>
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {breakdownData.items.map((item, i) => (
+                        <div key={`${item.id}-${i}`} className="flex items-center gap-3 p-2 rounded-lg text-sm"
+                          style={{ background: 'rgba(0,0,0,0.2)' }}>
+                          <span className="w-5 flex-shrink-0">
+                            {item.type === 'expense_paid' ? '💰' :
+                             item.type === 'expense_owed' ? '📋' :
+                             item.type === 'settlement_paid' ? '💸' : '📥'}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate">{item.description}</p>
+                            <p className="text-xs text-[var(--color-text-muted)]">
+                              {formatDate(item.date)}
+                              {item.paidBy && ` · paid by ${item.paidBy.name}`}
+                            </p>
+                          </div>
+                          <span className={`font-medium flex-shrink-0 ${item.netEffect >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {item.netEffect >= 0 ? '+' : ''}{formatCurrency(item.netEffect, breakdownData.currency)}
+                          </span>
+                        </div>
+                      ))}
+                      {breakdownData.items.length === 0 && (
+                        <p className="text-center text-[var(--color-text-muted)] text-sm py-4">No transactions found.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Simplified debts */}
                 {balances.simplifiedDebts?.length > 0 && (

@@ -209,6 +209,136 @@ const balancesService = {
       groupBalances,
     };
   },
+
+  /**
+   * Get a detailed breakdown of which expenses contribute to a user's balance.
+   * Rohan's requirement: "If the app says I owe ₹2,300, I want to see exactly which expenses make that up."
+   *
+   * @param {string} groupId
+   * @param {string} targetUserId - The user whose breakdown we want
+   * @param {string} requestingUserId - The user making the request (for access check)
+   */
+  async getBalanceBreakdown(groupId, targetUserId, requestingUserId) {
+    // Verify access
+    const membership = await prisma.groupMembership.findFirst({
+      where: { groupId, userId: requestingUserId },
+    });
+    if (!membership) {
+      const error = new Error('You are not a member of this group.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      select: { baseCurrency: true },
+    });
+
+    // Get all expenses where the target user paid (they are owed money)
+    const expensesPaid = await prisma.expense.findMany({
+      where: { groupId, paidById: targetUserId, isDeleted: false },
+      include: {
+        paidBy: { select: { id: true, name: true } },
+        splits: {
+          include: { user: { select: { id: true, name: true } } },
+        },
+      },
+      orderBy: { expenseDate: 'desc' },
+    });
+
+    // Get all expense splits where the target user owes money
+    const splitsOwed = await prisma.expenseSplit.findMany({
+      where: {
+        userId: targetUserId,
+        expense: { groupId, isDeleted: false, paidById: { not: targetUserId } },
+      },
+      include: {
+        expense: {
+          include: {
+            paidBy: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    // Get all settlements involving this user
+    const settlementsPaid = await prisma.settlement.findMany({
+      where: { groupId, payerId: targetUserId },
+      include: { payee: { select: { id: true, name: true } } },
+      orderBy: { settledAt: 'desc' },
+    });
+    const settlementsReceived = await prisma.settlement.findMany({
+      where: { groupId, payeeId: targetUserId },
+      include: { payer: { select: { id: true, name: true } } },
+      orderBy: { settledAt: 'desc' },
+    });
+
+    // Build owed-to-user items (from expenses they paid, others' splits)
+    const owedToUser = expensesPaid.map((exp) => {
+      const otherSplits = exp.splits.filter((s) => s.userId !== targetUserId);
+      const totalOwed = otherSplits.reduce((sum, s) => sum + parseFloat(s.normalizedAmount), 0);
+      return {
+        type: 'expense_paid',
+        id: exp.id,
+        description: exp.description,
+        date: exp.expenseDate,
+        totalAmount: parseFloat(exp.normalizedAmount),
+        netEffect: parseFloat(totalOwed.toFixed(2)), // positive: others owe this user
+        currency: group.baseCurrency,
+        splitDetails: otherSplits.map((s) => ({
+          user: s.user,
+          amount: parseFloat(s.normalizedAmount),
+        })),
+      };
+    });
+
+    // Build user-owes items (from other people's expenses where user has a split)
+    const userOwes = splitsOwed.map((split) => ({
+      type: 'expense_owed',
+      id: split.expense.id,
+      description: split.expense.description,
+      date: split.expense.expenseDate,
+      paidBy: split.expense.paidBy,
+      netEffect: -parseFloat(split.normalizedAmount), // negative: user owes this
+      currency: group.baseCurrency,
+      splitAmount: parseFloat(split.normalizedAmount),
+    }));
+
+    // Build settlement items
+    const settlementItems = [
+      ...settlementsPaid.map((s) => ({
+        type: 'settlement_paid',
+        id: s.id,
+        description: `Paid ${s.payee.name}`,
+        date: s.settledAt,
+        netEffect: parseFloat(s.normalizedAmount), // positive: reduces what user owes
+        currency: group.baseCurrency,
+        to: s.payee,
+      })),
+      ...settlementsReceived.map((s) => ({
+        type: 'settlement_received',
+        id: s.id,
+        description: `Received from ${s.payer.name}`,
+        date: s.settledAt,
+        netEffect: -parseFloat(s.normalizedAmount), // negative: reduces what others owe user
+        currency: group.baseCurrency,
+        from: s.payer,
+      })),
+    ];
+
+    // Combine all and sort by date
+    const allItems = [...owedToUser, ...userOwes, ...settlementItems]
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const totalNet = allItems.reduce((sum, item) => sum + item.netEffect, 0);
+
+    return {
+      userId: targetUserId,
+      currency: group.baseCurrency,
+      netBalance: parseFloat(totalNet.toFixed(2)),
+      items: allItems,
+    };
+  },
 };
 
 module.exports = balancesService;

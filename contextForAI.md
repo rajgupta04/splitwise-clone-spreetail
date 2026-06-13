@@ -658,6 +658,8 @@ client/src/
 11. **Soft deletes**: Expenses use `is_deleted`, Groups use `is_active`. Soft-deleted items excluded from queries.
 12. **Rejoin support**: When a member rejoins, a new `GroupMembership` record is created with a new `joined_at`. Unique constraint `(groupId, userId, joinedAt)` ensures no duplicates.
 13. **Greedy debt simplification**: Balance engine sorts debtors/creditors by amount, matches largest pairs, transfers minimum of their balances. Produces minimum number of transactions.
+14. **Automatic Approval**: `clean` import items are automatically treated as approved during import finalization.
+15. **Strict Terminal States**: Any failure during import finalization (e.g. unknown payer) explicitly updates the item status to `failed` and records a `FINALIZATION_ERROR` anomaly flag. No rows are silently skipped.
 
 ---
 
@@ -756,10 +758,15 @@ splitwise-clone-spreetail/
   * **DEC-004**: Temporal membership status timelines.
   * **DEC-005**: Currency Service Caching using In-Memory JavaScript Map.
   * **DEC-006**: Group Base Currency Strategy.
+  * **DEC-007**: Automatic Approval of CLEAN Import Items.
+  * **DEC-008**: Strict Terminal States for Import Finalization.
   * *See [DECISIONS.md](file:///s:/Workplace/splitwise-clone-spreetail/DECISIONS.md) for alternatives considered and reasoning detail.*
 * **New Bugs**:
   * **BUG-008**: Frontend Currency UX — Add Expense form displayed confusing exchange rate inputs even for base currency matches. Resolved via backend API integration and conditional UI.
-  * Reconstructed and resolved all previous bugs (BUG-001 through BUG-007).
+  * **BUG-009**: CLEAN items triggered undecided finalization blocker.
+  * **BUG-010**: Silent failures on unknown payers during finalization.
+  * **BUG-011**: Silent failures on unmatched participants during finalization.
+  * Reconstructed and resolved all previous bugs (BUG-001 through BUG-011).
   * *See [BUG_LOG.md](file:///s:/Workplace/splitwise-clone-spreetail/BUG_LOG.md) for full records.*
 * **Next Recommended Step**:
   * Analyze `expenses_export.csv` to specify CSV parsing templates and configure the anomaly detection validator blocks.

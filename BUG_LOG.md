@@ -145,3 +145,54 @@ Tracks symptoms, errors, root causes, fixes, and verification details throughout
 * **Fix Applied**: Exposed `GET /api/currency/rate`, added `currencyApi` to frontend, implemented `useEffect` to auto-fetch rates, conditionally hide the rate field when `expenseCurrency == baseCurrency`, and display real-time converted amounts when they differ.
 * **Verification Method**: UI tests confirm exchange rate hides on exact match and auto-fetches/previews on foreign currency selection.
 * **Status**: Resolved
+
+---
+
+## BUG-009
+
+* **Bug ID**: BUG-009
+* **Date**: 2026-06-13
+* **Module**: Imports
+* **Symptoms / Issue**: Import finalization throws a 400 error about unreviewed items even when the user has approved or rejected all flagged items.
+* **Error Message**: `X items have not been reviewed yet. Please decide on all items before finalizing.`
+* **Investigation Steps**:
+  1. Traced `finalizeImport` logic and discovered `clean` items were evaluated as `undecided`.
+  2. Confirmed that items without anomalies start as `clean` and the UI does not prompt users to approve them.
+* **Root Cause**: The filter for `undecided` items assumed all valid terminal states were either `approved`, `rejected`, or `error`, inadvertently categorizing `clean` items as unreviewed blockers.
+* **Fix Applied**: Updated `finalizeImport` to explicitly include `clean` items within the `approved` execution list and bypass the undecided check.
+* **Verification Method**: Ran trace simulations and confirmed `clean` items are successfully imported.
+* **Status**: Resolved
+
+---
+
+## BUG-010
+
+* **Bug ID**: BUG-010
+* **Date**: 2026-06-13
+* **Module**: Imports
+* **Symptoms / Issue**: Rows with missing or unmatched payers are silently dropped during import, resulting in fewer expenses than expected.
+* **Error Message**: None (Silent data loss).
+* **Investigation Steps**:
+  1. Simulated a finalization process with database records.
+  2. Noticed that rows with `paidByUserId === null` hit a `continue` statement inside the finalization loop, aborting creation without warning.
+* **Root Cause**: The loop was engineered to silently skip rows missing critical fields to avoid database transaction crashes, rather than explicitly failing the row and recording a terminal error state.
+* **Fix Applied**: Replaced the silent `continue` with a database update that transitions the item's status to `failed` and records a `FINALIZATION_ERROR` anomaly flag.
+* **Verification Method**: Verified via test scripts that unmatched payers yield a `failed` item status instead of disappearing.
+* **Status**: Resolved
+
+---
+
+## BUG-011
+
+* **Bug ID**: BUG-011
+* **Date**: 2026-06-13
+* **Module**: Imports
+* **Symptoms / Issue**: Rows with zero recognized participants are silently skipped.
+* **Error Message**: None (Silent data loss).
+* **Investigation Steps**:
+  1. Traced split calculation logic inside `finalizeImport`.
+  2. Discovered that if `participants.length === 0`, a `continue` executes.
+* **Root Cause**: Similar to BUG-010, the pipeline swallowed invalid split arrays to prevent division-by-zero crashes but failed to report the rejection.
+* **Fix Applied**: Integrated explicit error transitions (`failed` status) and `FINALIZATION_ERROR` anomaly generation prior to the loop continuation.
+* **Verification Method**: Code audit confirms all silent `continue` pathways are eliminated.
+* **Status**: Resolved
