@@ -83,8 +83,8 @@ const membershipsRepository = {
     const result = await prisma.$queryRaw`
       SELECT EXISTS (
         SELECT 1 FROM group_memberships
-        WHERE group_id = ${groupId}::uuid
-          AND user_id = ${userId}::uuid
+        WHERE group_id = ${groupId}::text
+          AND user_id = ${userId}::text
           AND joined_at <= ${new Date(date)}
           AND (left_at IS NULL OR left_at >= ${new Date(date)})
       ) AS is_member
@@ -104,7 +104,7 @@ const membershipsRepository = {
       SELECT u.id, u.name, u.email
       FROM group_memberships gm
       JOIN users u ON u.id = gm.user_id
-      WHERE gm.group_id = ${groupId}::uuid
+      WHERE gm.group_id = ${groupId}::text
         AND gm.joined_at <= ${new Date(date)}
         AND (gm.left_at IS NULL OR gm.left_at >= ${new Date(date)})
     `;

@@ -34,7 +34,9 @@ const expensesRepository = {
    * Find expenses for a group (non-deleted), with pagination.
    */
   async findByGroupId(groupId, { page = 1, limit = 20 } = {}) {
-    const skip = (page - 1) * limit;
+    const pageInt = parseInt(page, 10) || 1;
+    const limitInt = parseInt(limit, 10) || 20;
+    const skip = (pageInt - 1) * limitInt;
 
     const [expenses, total] = await Promise.all([
       prisma.expense.findMany({
@@ -48,7 +50,7 @@ const expensesRepository = {
         },
         orderBy: { expenseDate: 'desc' },
         skip,
-        take: limit,
+        take: limitInt,
       }),
       prisma.expense.count({ where: { groupId, isDeleted: false } }),
     ]);

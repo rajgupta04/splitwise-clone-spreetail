@@ -17,12 +17,14 @@ const expensesController = {
 
   async list(req, res, next) {
     try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 20;
       const { expenses, total } = await expensesService.getGroupExpenses(
         req.params.groupId,
         req.user.id,
-        { page: req.query.page, limit: req.query.limit }
+        { page, limit }
       );
-      return ApiResponse.paginated(res, expenses, total, req.query.page, req.query.limit);
+      return ApiResponse.paginated(res, expenses, total, page, limit);
     } catch (error) {
       return next(error);
     }

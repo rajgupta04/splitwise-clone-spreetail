@@ -1,7 +1,7 @@
 # Splitwise Clone - Spreetail Assignment — AI Context File
 
 > **Purpose**: Single source of truth for the project. Enables seamless continuation across AI tools, accounts, and sessions.
-> **Last Updated**: 2026-06-12 (Backend + Frontend implementation complete, pre-CSV)
+> **Last Updated**: 2026-06-13 (BUG-001 fix: TEXT vs UUID type mismatch in raw SQL)
 
 ---
 
@@ -608,6 +608,7 @@ client/src/
 | 2026-06-12 | All pages | `LoginPage`, `RegisterPage`, `DashboardPage`, `GroupDetailPage` | UI implementation |
 | 2026-06-12 | Design system | `client/src/index.css` | Dark theme, glassmorphism, animations |
 | 2026-06-12 | .gitignore | `.gitignore` | User-created |
+| 2026-06-13 | **BUG-001 fix**: Added `::text` casts to raw SQL params | `balances.repository.js`, `memberships.repository.js` | Prisma `String` → `TEXT` columns, but `$queryRaw` auto-infers `::uuid` on UUID strings. Removing `::uuid` from source was insufficient — Prisma adds it at engine level. Fix: `${param}::text` overrides inference. See `BACKEND_AUDIT.md` |
 
 ---
 
@@ -629,6 +630,7 @@ client/src/
 | 12 | **Balance calculation not cached** | Recalculated on every request | For small groups (<20 members), this is fine. Could add materialized views for scale |
 | 13 | **No file cleanup** | Uploaded CSV files accumulate on disk | Add cron job or lifecycle policy in production |
 | 14 | **Anomaly thresholds are hardcoded** | 2× average and $10K cap may not suit all groups | Could make configurable per group in future |
+| 15 | **ID/FK columns are TEXT, not UUID** | All `id` and FK columns are PostgreSQL `TEXT` (Prisma `String` without `@db.Uuid`). Raw SQL must never use `::uuid` casts. | Could add `@db.Uuid` to schema + migrate, but TEXT works correctly for UUID-formatted strings |
 
 ---
 

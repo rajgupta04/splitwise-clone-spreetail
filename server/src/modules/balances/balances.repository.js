@@ -21,7 +21,7 @@ const balancesRepository = {
         SUM(es.normalized_amount) AS total_amount
       FROM expense_splits es
       JOIN expenses e ON e.id = es.expense_id
-      WHERE e.group_id = ${groupId}::uuid
+      WHERE e.group_id = ${groupId}::text
         AND e.is_deleted = false
         AND es.user_id != e.paid_by
       GROUP BY es.user_id, e.paid_by
@@ -38,7 +38,7 @@ const balancesRepository = {
         payee_id,
         SUM(normalized_amount) AS total_amount
       FROM settlements
-      WHERE group_id = ${groupId}::uuid
+      WHERE group_id = ${groupId}::text
       GROUP BY payer_id, payee_id
     `;
   },
