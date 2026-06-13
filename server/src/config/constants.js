@@ -32,9 +32,11 @@ module.exports = {
     APPROVED: 'approved',
     REJECTED: 'rejected',
     ERROR: 'error',
+    IMPORTED: 'imported',
+    FAILED: 'failed',
   },
 
-  // Anomaly types (confirmed 7 types)
+  // Anomaly types
   ANOMALY_TYPES: {
     DUPLICATE_EXPENSE: 'duplicate_expense',
     AMOUNT_OUTLIER: 'amount_outlier',
@@ -43,6 +45,23 @@ module.exports = {
     MISSING_FIELDS: 'missing_fields',
     INVALID_SPLIT: 'invalid_split',
     UNKNOWN_PARTICIPANT: 'unknown_participant',
+    SETTLEMENT_AS_EXPENSE: 'settlement_as_expense',
+    NAME_MISMATCH: 'name_mismatch',
+    FORMAT_ERROR: 'format_error',
+    ZERO_AMOUNT: 'zero_amount',
+    NEGATIVE_AMOUNT: 'negative_amount',
+    AMBIGUOUS_DATE: 'ambiguous_date',
+    INVALID_DATE: 'invalid_date',
+    CONFLICTING_SPLIT_DATA: 'conflicting_split_data',
+    ROUNDING_ISSUE: 'rounding_issue',
+    MISSING_CURRENCY: 'missing_currency',
+    FINALIZATION_ERROR: 'finalization_error',
+  },
+
+  // CSV split type aliases (map CSV values to our system values)
+  SPLIT_TYPE_ALIASES: {
+    'unequal': 'exact',
+    'share': 'shares',
   },
 
   // Anomaly severity

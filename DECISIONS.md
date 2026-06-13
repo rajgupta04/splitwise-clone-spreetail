@@ -106,3 +106,37 @@ Tracks key architectural and technical design decisions, alternatives considered
   * *Strict Base Currency*: Requires tracking explicit exchange rates at the moment an expense is added.
 * **Final Choice**: Strict Group Base Currency.
 * **Reasoning**: Balances must be reproducible, auditable, and independent of future exchange-rate changes. By fetching the exchange rate exactly once at creation/import and storing the `normalized_amount` along with the `exchange_rate` used, we guarantee financial stability within the group.
+
+---
+
+## DEC-007: Automatic Approval of CLEAN Import Items
+
+* **Decision**: Establish the default approval workflow for CSV import items that pass the anomaly detection engine.
+* **Alternatives Considered**:
+  1. **Explicit Approval**: Require users to manually review and approve every single row, regardless of whether anomalies were detected.
+  2. **Automatic Approval (Option A)**: Automatically categorize items with no anomalies (`clean` status) as eligible for finalization without user interaction.
+* **Pros**:
+  * *Explicit Approval*: Maximum user control.
+  * *Automatic Approval*: Significantly reduces friction; users only spend time reviewing rows that actually need attention.
+* **Cons**:
+  * *Explicit Approval*: Extremely tedious UX (e.g., clicking 'Approve' 150 times for a 150-row CSV).
+  * *Automatic Approval*: Relies entirely on the accuracy of the anomaly detection engine to catch errors.
+* **Final Choice**: Automatic Approval.
+* **Reasoning**: The anomaly detection engine is comprehensive. Forcing users to manually approve perfect rows contradicts the purpose of anomaly detection. Treating `clean` items as automatically `approved` during finalization delivers a premium, low-friction UX.
+
+---
+
+## DEC-008: Strict Terminal States for Import Finalization
+
+* **Decision**: Define how failures during the finalization stage (transaction phase) are recorded and surfaced to the user.
+* **Alternatives Considered**:
+  1. **Silent Continues**: Skip un-importable rows (e.g., missing payers) silently to avoid crashing the transaction loop.
+  2. **Strict Terminal States**: Explicitly transition failed rows to a `failed` database status, log a `FINALIZATION_ERROR` anomaly flag, and reflect it in the final Import Report.
+* **Pros**:
+  * *Silent Continues*: Simpler to code; prevents total pipeline collapse.
+  * *Strict Terminal States*: Eliminates data loss; creates an accurate, transparent Import Report ensuring users know exactly why an expense wasn't created.
+* **Cons**:
+  * *Silent Continues*: Produces a "black box" effect where users do not know why an imported list of 42 items only yielded 35 expenses.
+  * *Strict Terminal States*: Requires adding additional status flags and handling rollback states outside of transactions.
+* **Final Choice**: Strict Terminal States.
+* **Reasoning**: A silent failure in financial software is unacceptable. Every uploaded row must have an explicit outcome. Transitioning items to terminal states (`imported`, `rejected`, `failed`) ensures 100% accountability in the Import Report.

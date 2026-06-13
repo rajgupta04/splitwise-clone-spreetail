@@ -16,4 +16,12 @@ router.get(
 
 router.get('/balances/me', balancesController.getUserBalanceSummary);
 
+router.get(
+  '/groups/:groupId/balances/:userId/breakdown',
+  validate({
+    params: z.object({ groupId: z.string().uuid(), userId: z.string().uuid() }),
+  }),
+  balancesController.getBalanceBreakdown
+);
+
 module.exports = router;
