@@ -4,6 +4,7 @@ const expensesRepository = require('./expenses.repository');
 const membershipsRepository = require('../memberships/memberships.repository');
 const { logActivity } = require('../../utils/activityLogger');
 const { ACTIVITY_ACTIONS, ENTITY_TYPES, SPLIT_TYPES } = require('../../config/constants');
+const currencyService = require('../currency/currency.service');
 
 /**
  * Expenses service — business logic for expense management.
@@ -69,12 +70,24 @@ const expensesService = {
       }
     }
 
-    // Calculate normalized amount
-    const normalizedAmount = parseFloat((originalAmount * exchangeRate).toFixed(2));
+    // Determine exchange rate (fetch if not provided)
+    let finalExchangeRate = exchangeRate;
+    if (!finalExchangeRate) {
+      finalExchangeRate = await currencyService.getExchangeRate(
+        originalCurrency,
+        group.baseCurrency,
+        expenseDate
+      );
+    } else {
+      finalExchangeRate = parseFloat(finalExchangeRate);
+    }
+
+    // Calculate normalized amount securely
+    const normalizedAmount = currencyService.convertAmount(originalAmount, finalExchangeRate);
 
     // Calculate splits based on split type
     const splits = this._calculateSplits(
-      splitType, originalAmount, normalizedAmount, exchangeRate, participants
+      splitType, originalAmount, normalizedAmount, finalExchangeRate, participants
     );
 
     // Create expense data
@@ -84,7 +97,7 @@ const expensesService = {
       description,
       originalAmount,
       originalCurrency: originalCurrency.toUpperCase(),
-      exchangeRate,
+      exchangeRate: finalExchangeRate,
       normalizedAmount,
       splitType,
       expenseDate: new Date(expenseDate),
@@ -352,10 +365,25 @@ const expensesService = {
       exchangeRate, splitType, expenseDate, participants,
     } = data;
 
-    const normalizedAmount = parseFloat((originalAmount * exchangeRate).toFixed(2));
+    const dateToCheck = expenseDate || existingExpense.expenseDate;
+
+    // Determine exchange rate
+    let finalExchangeRate = exchangeRate;
+    if (!finalExchangeRate && originalCurrency) {
+      const group = await prisma.group.findUnique({ where: { id: existingExpense.groupId } });
+      finalExchangeRate = await currencyService.getExchangeRate(
+        originalCurrency,
+        group.baseCurrency,
+        dateToCheck
+      );
+    } else {
+      finalExchangeRate = parseFloat(finalExchangeRate || existingExpense.exchangeRate);
+    }
+
+    const currentOriginalCurrency = originalCurrency || existingExpense.originalCurrency;
+    const normalizedAmount = currencyService.convertAmount(originalAmount, finalExchangeRate);
 
     // Validate membership for all participants on expense date
-    const dateToCheck = expenseDate || existingExpense.expenseDate;
     for (const participant of participants) {
       const isMember = await membershipsRepository.isMemberOnDate(
         existingExpense.groupId, participant.userId, dateToCheck
@@ -370,15 +398,15 @@ const expensesService = {
     }
 
     const splits = this._calculateSplits(
-      splitType, originalAmount, normalizedAmount, exchangeRate, participants
+      splitType, originalAmount, normalizedAmount, finalExchangeRate, participants
     );
 
     const expenseData = {
       paidById,
       description,
       originalAmount,
-      originalCurrency: originalCurrency.toUpperCase(),
-      exchangeRate,
+      originalCurrency: currentOriginalCurrency.toUpperCase(),
+      exchangeRate: finalExchangeRate,
       normalizedAmount,
       splitType,
       expenseDate: new Date(expenseDate),

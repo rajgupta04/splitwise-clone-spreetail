@@ -85,8 +85,8 @@ const membershipsRepository = {
         SELECT 1 FROM group_memberships
         WHERE group_id = ${groupId}::text
           AND user_id = ${userId}::text
-          AND joined_at <= ${new Date(date)}
-          AND (left_at IS NULL OR left_at >= ${new Date(date)})
+          AND joined_at::date <= ${new Date(date)}::date
+          AND (left_at IS NULL OR left_at::date >= ${new Date(date)}::date)
       ) AS is_member
     `;
     return result[0]?.is_member ?? false;
@@ -105,8 +105,8 @@ const membershipsRepository = {
       FROM group_memberships gm
       JOIN users u ON u.id = gm.user_id
       WHERE gm.group_id = ${groupId}::text
-        AND gm.joined_at <= ${new Date(date)}
-        AND (gm.left_at IS NULL OR gm.left_at >= ${new Date(date)})
+        AND gm.joined_at::date <= ${new Date(date)}::date
+        AND (gm.left_at IS NULL OR gm.left_at::date >= ${new Date(date)}::date)
     `;
   },
 

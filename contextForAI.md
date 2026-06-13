@@ -1,7 +1,7 @@
 # Splitwise Clone - Spreetail Assignment — AI Context File
 
 > **Purpose**: Single source of truth for the project. Enables seamless continuation across AI tools, accounts, and sessions.
-> **Last Updated**: 2026-06-13 (BUG-001 fix: TEXT vs UUID type mismatch in raw SQL)
+> **Last Updated**: 2026-06-13 (Added BUG_LOG.md tracking system, BUG-001, BUG-002, and BUG-003 fixed, added temporal seed dataset)
 
 ---
 
@@ -608,7 +608,10 @@ client/src/
 | 2026-06-12 | All pages | `LoginPage`, `RegisterPage`, `DashboardPage`, `GroupDetailPage` | UI implementation |
 | 2026-06-12 | Design system | `client/src/index.css` | Dark theme, glassmorphism, animations |
 | 2026-06-12 | .gitignore | `.gitignore` | User-created |
-| 2026-06-13 | **BUG-001 fix**: Added `::text` casts to raw SQL params | `balances.repository.js`, `memberships.repository.js` | Prisma `String` → `TEXT` columns, but `$queryRaw` auto-infers `::uuid` on UUID strings. Removing `::uuid` from source was insufficient — Prisma adds it at engine level. Fix: `${param}::text` overrides inference. See `BACKEND_AUDIT.md` |
+| 2026-06-13 | **BUG-001 fix**: Added `::text` casts to raw SQL params | `balances.repository.js`, `memberships.repository.js` | Prisma `String` → `TEXT` columns, but `$queryRaw` auto-infers `::uuid` on UUID strings. Removing `::uuid` from source was insufficient — Prisma adds it at engine level. Fix: `${param}::text` overrides inference. See `BUG_LOG.md` |
+| 2026-06-13 | **BUG-002 fix**: Parse pagination params to integers | `expenses.controller.js`, `expenses.repository.js` | Express query params are strings by default. Prisma `take`/`skip` require Int. Fix: parsed with `parseInt` at HTTP boundary and database layer. See `BUG_LOG.md` |
+| 2026-06-13 | **BUG-003 fix**: Payer membership validation failure | `memberships.repository.js` | Fixed timestamp vs date-only comparison issue on immediate expense creation for new groups by casting operands to `::date` in PostgreSQL. See `BUG_LOG.md` |
+| 2026-06-13 | **Seed dataset created**: Created temporal membership seed | `server/prisma/seed.js` | Configured Aisha, Rohan, Priya, Meera, Sam, Dev with Flatmates group, timeline memberships, and sample equal, percentage, shares splits and settlement. See `SEED_DATASET.md` |
 
 ---
 
@@ -715,6 +718,10 @@ splitwise-clone-spreetail/
 │   └── package.json
 │
 ├── .gitignore
+├── BUG_LOG.md                           # Permanent bug tracking history
+├── DECISIONS.md                         # Permanent engineering decisions history
+├── AI_USAGE.md                          # AI usage and correction history
+├── SEED_DATASET.md                      # Seed dataset documentation
 ├── contextForAI.md                      # ← THIS FILE
 ├── README.md
 └── LICENSE
@@ -724,23 +731,38 @@ splitwise-clone-spreetail/
 
 ## 17. Current Project Status (Summary)
 
-| Category | Status |
-|----------|--------|
-| Backend modules | ✅ 7/7 complete (38 files) |
-| API endpoints | ✅ 30/30 implemented |
-| Database schema | ✅ Designed (not yet migrated) |
-| Frontend pages | ✅ 4 pages + 4 modals |
-| Frontend build | ✅ Passes (`vite build` → 328KB JS, 20KB CSS) |
-| CSV import engine | ⏳ Framework only (no parsing) |
-| Anomaly detection | ⏳ Types designed, rules not implemented |
-| Tests | ❌ Not started |
-| Deployment | ❌ Not started |
-
-### Next Steps
-1. **Provide `expenses_export.csv`** → Analyze → Implement CSV parsing + anomaly detectors
-2. Run database migrations with a real `DATABASE_URL`
-3. Write tests (split calculations, balance engine, temporal membership)
-4. Deploy to Vercel + Render + Neon
+* **Current Status**: Backend and frontend layers are fully operational. Core modules (Auth, Groups, Memberships, Expenses, Balances, Settlements) successfully integrated with PostgreSQL via Prisma ORM. Temporal membership checks have been verified using the `Flatmates` timeline dataset.
+* **Completed Modules**:
+  * **Auth**: JWT-based security with bcrypt password hashing.
+  * **Groups**: Creator-aware group CRUD.
+  * **Memberships**: Timeline-aware temporal group memberships (joins, leaves, rejoins).
+  * **Expenses**: Splitting computations for Equal, Percentage, Exact, and Shares split types.
+  * **Balances**: Aggregate net balance computations and greedy debt simplification solver.
+  * **Settlements**: Settle-up payments recorded per group.
+  * **CurrencyService**: Production-grade currency handling using Frankfurter API, with in-memory caching.
+  * **Seeding**: Temporal timeline development seed dataset script.
+* **Pending Modules**:
+  * **CSV Import Parser**: Upload endpoint is complete, but CSV column mappings and parsing are pending receipt of `expenses_export.csv`.
+  * **Anomaly Detection Engine**: Checking engine framework exists, but anomaly check implementations are blocked by the CSV format structure.
+  * **Testing Suite**: Automated Jest and Vitest suites are planned.
+  * **Deployment Configurations**: Production setups for Vercel, Render, and Neon.
+* **New Business Rules**:
+  * Raw SQL temporal queries must cast timestamp operands to PostgreSQL `DATE` types (`::date`) to ignore time-of-day components during same-day joiner checks.
+  * Seeding scripts must explicitly indicate database cleaning operations (`deleteMany`) to prevent silent deletion of user data in production.
+* **New Decisions**:
+  * **DEC-001**: Hybrid Prisma ORM + Raw SQL architecture.
+  * **DEC-002**: TEXT column types for identifiers with UUID values.
+  * **DEC-003**: Dual-value multi-currency exchange rate persistence.
+  * **DEC-004**: Temporal membership status timelines.
+  * **DEC-005**: Currency Service Caching using In-Memory JavaScript Map.
+  * **DEC-006**: Group Base Currency Strategy.
+  * *See [DECISIONS.md](file:///s:/Workplace/splitwise-clone-spreetail/DECISIONS.md) for alternatives considered and reasoning detail.*
+* **New Bugs**:
+  * **BUG-008**: Frontend Currency UX — Add Expense form displayed confusing exchange rate inputs even for base currency matches. Resolved via backend API integration and conditional UI.
+  * Reconstructed and resolved all previous bugs (BUG-001 through BUG-007).
+  * *See [BUG_LOG.md](file:///s:/Workplace/splitwise-clone-spreetail/BUG_LOG.md) for full records.*
+* **Next Recommended Step**:
+  * Analyze `expenses_export.csv` to specify CSV parsing templates and configure the anomaly detection validator blocks.
 
 ---
 
@@ -748,10 +770,10 @@ splitwise-clone-spreetail/
 
 ### For AI Agents
 1. Read this entire file
-2. Read `server/prisma/schema.prisma` for schema
-3. Check `server/src/modules/` for module implementations
-4. Check `client/src/pages/` for UI components
-5. If CSV file is available, analyze it first before coding
+2. Read [BUG_LOG.md](file:///s:/Workplace/splitwise-clone-spreetail/BUG_LOG.md) and [DECISIONS.md](file:///s:/Workplace/splitwise-clone-spreetail/DECISIONS.md) for context.
+3. Read `server/prisma/schema.prisma` for schema.
+4. Check `server/src/modules/` for module implementations.
+5. If CSV file is available, analyze it first before coding.
 
 ### For Humans
 1. `git clone` → `cd server` → `cp .env.example .env` → fill in values
@@ -760,4 +782,5 @@ splitwise-clone-spreetail/
 4. Terminal 1: `cd server && npm run dev`
 5. Terminal 2: `cd client && npm run dev`
 6. Open `http://localhost:5173`
-7. Login as `alice@example.com` / `password123`
+7. Login as `aisha@example.com` / `Password123!`
+

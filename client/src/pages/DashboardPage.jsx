@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { groupsApi, balancesApi } from '../api';
 import { formatCurrency, getInitials, getAvatarColor } from '../utils/helpers';
+import { CURRENCIES } from '../utils/constants';
 import {
   Plus, Users, TrendingUp, TrendingDown, Wallet,
   LogOut, ChevronRight, DollarSign,
@@ -233,13 +234,9 @@ function CreateGroupModal({ onClose, onSubmit }) {
               value={form.baseCurrency}
               onChange={(e) => setForm({ ...form, baseCurrency: e.target.value })}
             >
-              <option value="USD">USD — US Dollar</option>
-              <option value="EUR">EUR — Euro</option>
-              <option value="GBP">GBP — British Pound</option>
-              <option value="INR">INR — Indian Rupee</option>
-              <option value="JPY">JPY — Japanese Yen</option>
-              <option value="CAD">CAD — Canadian Dollar</option>
-              <option value="AUD">AUD — Australian Dollar</option>
+              {CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>{c.label}</option>
+              ))}
             </select>
           </div>
           <div className="flex gap-3 pt-2">

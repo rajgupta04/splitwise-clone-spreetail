@@ -12,6 +12,7 @@ const expensesRoutes = require('./modules/expenses/expenses.routes');
 const balancesRoutes = require('./modules/balances/balances.routes');
 const settlementsRoutes = require('./modules/settlements/settlements.routes');
 const importsRoutes = require('./modules/imports/imports.routes');
+const currencyRoutes = require('./modules/currency/currency.routes');
 
 const app = express();
 
@@ -63,6 +64,9 @@ app.use('/api', balancesRoutes);
 
 // Import routes (has both /api/groups/:id/imports and /api/imports/:id)
 app.use('/api', importsRoutes);
+
+// Currency routes
+app.use('/api/currency', currencyRoutes);
 
 // ─── 404 HANDLER ─────────────────────────────────────────────────────────────
 

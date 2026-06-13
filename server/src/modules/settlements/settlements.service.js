@@ -2,6 +2,7 @@ const prisma = require('../../config/database');
 const settlementsRepository = require('./settlements.repository');
 const { logActivity } = require('../../utils/activityLogger');
 const { ACTIVITY_ACTIONS, ENTITY_TYPES } = require('../../config/constants');
+const currencyService = require('../currency/currency.service');
 
 const settlementsService = {
   /**
@@ -33,7 +34,20 @@ const settlementsService = {
       throw error;
     }
 
-    const normalizedAmount = parseFloat((originalAmount * exchangeRate).toFixed(2));
+    const group = await prisma.group.findUnique({ where: { id: groupId } });
+
+    let finalExchangeRate = exchangeRate;
+    if (!finalExchangeRate) {
+      finalExchangeRate = await currencyService.getExchangeRate(
+        originalCurrency,
+        group.baseCurrency,
+        'latest'
+      );
+    } else {
+      finalExchangeRate = parseFloat(finalExchangeRate);
+    }
+
+    const normalizedAmount = currencyService.convertAmount(originalAmount, finalExchangeRate);
 
     const settlement = await settlementsRepository.create({
       groupId,
@@ -41,7 +55,7 @@ const settlementsService = {
       payeeId,
       originalAmount,
       originalCurrency: originalCurrency.toUpperCase(),
-      exchangeRate,
+      exchangeRate: finalExchangeRate,
       normalizedAmount,
       createdById: userId,
     });

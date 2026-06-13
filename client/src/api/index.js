@@ -56,3 +56,7 @@ export const importsApi = {
   getReport: (id) => client.get(`/imports/${id}/report`),
   getDecisions: (id) => client.get(`/imports/${id}/decisions`),
 };
+
+export const currencyApi = {
+  getRate: (from, to, date) => client.get('/currency/rate', { params: { from, to, date } }),
+};

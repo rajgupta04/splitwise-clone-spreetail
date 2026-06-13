@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { groupsApi, membershipsApi, expensesApi, balancesApi, settlementsApi } from '../api';
+import { groupsApi, membershipsApi, expensesApi, balancesApi, settlementsApi, currencyApi } from '../api';
 import { formatCurrency, formatDate, getInitials, getAvatarColor } from '../utils/helpers';
+import { CURRENCIES } from '../utils/constants';
 import {
   ArrowLeft, Users, Plus, DollarSign, ArrowRightLeft,
   UserPlus, UserMinus, Clock, Receipt, Trash2, History,
@@ -438,6 +439,31 @@ function AddExpenseModal({ onClose, onSubmit, members, group, userId }) {
     members.map((m) => ({ userId: m.user.id, amount: 0, percentage: 0, shares: 1 }))
   );
   const [loading, setLoading] = useState(false);
+  const [fetchingRate, setFetchingRate] = useState(false);
+
+  useEffect(() => {
+    if (form.originalCurrency === group.baseCurrency) {
+      if (form.exchangeRate !== 1) setForm((prev) => ({ ...prev, exchangeRate: 1 }));
+      return;
+    }
+
+    const fetchRate = async () => {
+      setFetchingRate(true);
+      try {
+        const res = await currencyApi.getRate(form.originalCurrency, group.baseCurrency, form.expenseDate);
+        setForm((prev) => ({ ...prev, exchangeRate: res.data.data.rate }));
+      } catch (err) {
+        toast.error('Failed to fetch exchange rate');
+      } finally {
+        setFetchingRate(false);
+      }
+    };
+    
+    // Only fetch if we have a valid date
+    if (form.expenseDate) {
+      fetchRate();
+    }
+  }, [form.originalCurrency, form.expenseDate, group.baseCurrency]);
 
   const toggleMember = (userId) => {
     setSelectedMembers((prev) => {
@@ -490,14 +516,28 @@ function AddExpenseModal({ onClose, onSubmit, members, group, userId }) {
             </div>
             <div>
               <label className="input-label">Currency</label>
-              <input type="text" className="input" value={form.originalCurrency} onChange={(e) => setForm({ ...form, originalCurrency: e.target.value })} maxLength={3} />
+              <select className="input" value={form.originalCurrency} onChange={(e) => setForm({ ...form, originalCurrency: e.target.value })}>
+                {CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
+              </select>
             </div>
           </div>
 
           {form.originalCurrency !== group.baseCurrency && (
-            <div>
-              <label className="input-label">Exchange Rate (1 {form.originalCurrency} = ? {group.baseCurrency})</label>
+            <div className="bg-[var(--color-bg-elevated)] p-4 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="input-label mb-0">Exchange Rate (1 {form.originalCurrency} = ? {group.baseCurrency})</label>
+                {fetchingRate && <span className="text-xs text-[var(--color-primary)] animate-pulse">Fetching...</span>}
+              </div>
               <input type="number" step="0.000001" className="input" value={form.exchangeRate} onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} />
+              
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--color-text-muted)]">Converted Amount:</span>
+                <span className="font-semibold text-[var(--color-primary-light)]">
+                  {formatCurrency(Number(form.originalAmount || 0) * Number(form.exchangeRate || 1), group.baseCurrency)}
+                </span>
+              </div>
             </div>
           )}
 
@@ -588,6 +628,28 @@ function SettlementModal({ onClose, onSubmit, members, group }) {
     exchangeRate: 1,
   });
   const [loading, setLoading] = useState(false);
+  const [fetchingRate, setFetchingRate] = useState(false);
+
+  useEffect(() => {
+    if (form.originalCurrency === group.baseCurrency) {
+      if (form.exchangeRate !== 1) setForm((prev) => ({ ...prev, exchangeRate: 1 }));
+      return;
+    }
+
+    const fetchRate = async () => {
+      setFetchingRate(true);
+      try {
+        const res = await currencyApi.getRate(form.originalCurrency, group.baseCurrency, 'latest');
+        setForm((prev) => ({ ...prev, exchangeRate: res.data.data.rate }));
+      } catch (err) {
+        toast.error('Failed to fetch exchange rate');
+      } finally {
+        setFetchingRate(false);
+      }
+    };
+    
+    fetchRate();
+  }, [form.originalCurrency, group.baseCurrency]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -626,9 +688,31 @@ function SettlementModal({ onClose, onSubmit, members, group }) {
             </div>
             <div>
               <label className="input-label">Currency</label>
-              <input type="text" className="input" value={form.originalCurrency} onChange={(e) => setForm({ ...form, originalCurrency: e.target.value })} maxLength={3} />
+              <select className="input" value={form.originalCurrency} onChange={(e) => setForm({ ...form, originalCurrency: e.target.value })}>
+                {CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
+              </select>
             </div>
           </div>
+
+          {form.originalCurrency !== group.baseCurrency && (
+            <div className="bg-[var(--color-bg-elevated)] p-4 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="input-label mb-0">Exchange Rate (1 {form.originalCurrency} = ? {group.baseCurrency})</label>
+                {fetchingRate && <span className="text-xs text-[var(--color-primary)] animate-pulse">Fetching...</span>}
+              </div>
+              <input type="number" step="0.000001" className="input" value={form.exchangeRate} onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} />
+              
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--color-text-muted)]">Converted Amount:</span>
+                <span className="font-semibold text-[var(--color-primary-light)]">
+                  {formatCurrency(Number(form.originalAmount || 0) * Number(form.exchangeRate || 1), group.baseCurrency)}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1 justify-center">Cancel</button>
             <button type="submit" className="btn-success flex-1 justify-center" disabled={loading}>
