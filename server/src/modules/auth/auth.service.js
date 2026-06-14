@@ -97,7 +97,7 @@ const authService = {
         path: csvPath,
         originalname: 'Expenses Export.csv',
       };
-      await importsService.processCSV(group.id, user.id, file);
+      await importsService.uploadCsv(group.id, user.id, file);
     }
 
     const token = this._generateToken(user);
