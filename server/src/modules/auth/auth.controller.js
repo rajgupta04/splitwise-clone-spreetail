@@ -30,6 +30,18 @@ const authController = {
   },
 
   /**
+   * POST /api/auth/demo
+   */
+  async demoLogin(req, res, next) {
+    try {
+      const { user, token } = await authService.demoLogin();
+      return ApiResponse.success(res, { user, token }, 'Demo login successful');
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  /**
    * GET /api/auth/me
    */
   async getProfile(req, res, next) {

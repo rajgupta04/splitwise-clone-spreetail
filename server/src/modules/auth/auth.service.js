@@ -68,7 +68,44 @@ const authService = {
   },
 
   /**
-   * Get current user profile.
+   * Demo Login - creates a fresh state for demo user.
+   */
+  async demoLogin() {
+    const email = 'demo@example.com';
+    let user = await authRepository.findByEmail(email);
+    
+    // Create demo user if it doesn't exist
+    if (!user) {
+      const salt = await bcrypt.genSalt(12);
+      const passwordHash = await bcrypt.hash('demopassword123', salt);
+      user = await authRepository.create({ email, name: 'Demo User', passwordHash });
+    }
+
+    // Setup Mock Group and Import
+    const groupsService = require('../groups/groups.service');
+    const importsService = require('../imports/imports.service');
+    const path = require('path');
+    const fs = require('fs');
+
+    // Create mock group
+    const group = await groupsService.createMockTestGroup(user.id);
+
+    // Auto-load CSV anomalies
+    const csvPath = path.resolve(__dirname, '../../../../Expenses Export.csv');
+    if (fs.existsSync(csvPath)) {
+      const file = {
+        path: csvPath,
+        originalname: 'Expenses Export.csv',
+      };
+      await importsService.processCSV(group.id, user.id, file);
+    }
+
+    const token = this._generateToken(user);
+    return { user, token };
+  },
+
+  /**
+   * Get user profile.
    * @param {string} userId
    * @returns {Promise<object>}
    * @throws {Error} If user not found
