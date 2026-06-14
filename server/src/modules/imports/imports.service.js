@@ -392,7 +392,7 @@ const importsService = {
   /**
    * Resolve a single import item's anomaly with structured resolution data.
    */
-  async resolveItem(importId, itemId, userId, { resolutionType, resolutionData }) {
+  async resolveItem(importId, itemId, userId, { resolutionType, resolutionData, anomalyId }) {
     const csvImport = await this.getImportById(importId, userId);
 
     // Only the uploader can resolve
@@ -419,12 +419,33 @@ const importsService = {
 
     // Determine import_status based on resolution type
     const skipResolutions = ['skip', 'reject', 'reject_row'];
-    const importStatus = skipResolutions.includes(resolutionType) ? 'skipped' : 'resolved';
+    let importStatus = skipResolutions.includes(resolutionType) ? 'skipped' : 'resolved';
+
+    let finalResType = resolutionType;
+    let finalResData = resolutionData || {};
+
+    if (anomalyId && item.anomalyFlags.length > 1) {
+      // If ANY anomaly is skipped/rejected, the whole row is skipped
+      if (importStatus === 'skipped') {
+        finalResType = resolutionType;
+        finalResData = resolutionData || {};
+      } else {
+        finalResType = 'compound';
+        const existingCompound = item.resolutionType === 'compound' ? (item.resolutionData?.resolutions || {}) : {};
+        existingCompound[anomalyId] = { type: resolutionType, data: resolutionData || {} };
+        finalResData = { resolutions: existingCompound };
+
+        const resolvedCount = Object.keys(existingCompound).length;
+        if (resolvedCount < item.anomalyFlags.length) {
+           importStatus = 'pending'; // Still waiting for other anomalies
+        }
+      }
+    }
 
     // Update the item with resolution data
     const updatedItem = await importsRepository.resolveItem(itemId, {
-      resolutionType,
-      resolutionData: resolutionData || {},
+      resolutionType: finalResType,
+      resolutionData: finalResData,
       resolvedById: userId,
       importStatus,
     });
@@ -435,7 +456,7 @@ const importsService = {
       action: ACTIVITY_ACTIONS.IMPORT_ITEM_RESOLVED,
       entityType: ENTITY_TYPES.IMPORT_ITEM,
       entityId: itemId,
-      metadata: { importId, resolutionType, resolutionData },
+      metadata: { importId, resolutionType: finalResType, resolutionData: finalResData },
     });
 
     return updatedItem;
@@ -531,17 +552,34 @@ const importsService = {
       const resType = item.resolutionType;
 
       // Apply resolution overrides to parsed data
-      this._applyResolutions(parsed, item, resType, resData, allUsers, allMemberships, group);
+      if (resType === 'compound') {
+        const resolutionsMap = resData.resolutions || {};
+        for (const flag of item.anomalyFlags) {
+          const subRes = resolutionsMap[flag.id];
+          if (subRes) {
+            this._applyResolutions(parsed, item, subRes.type, subRes.data, allUsers, allMemberships, group);
+          }
+        }
+      } else {
+        this._applyResolutions(parsed, item, resType, resData, allUsers, allMemberships, group);
+      }
 
       if (!parsed.paidByUserId || !parsed.date) {
         await importsRepository.updateItemStatus(item.id, IMPORT_ITEM_STATUS.FAILED);
         for (const flag of item.anomalyFlags) {
+          let specificResType = resType;
+          let specificResData = resData;
+          if (resType === 'compound') {
+            const subRes = (resData.resolutions || {})[flag.id];
+            specificResType = subRes ? subRes.type : 'pending';
+            specificResData = subRes ? subRes.data : {};
+          }
           reportRows.push({
             importId,
             rowNumber: item.rowNumber,
             originalValue: item.rawData,
             detectedIssue: `${flag.anomalyType} — ${flag.details}`,
-            userDecision: `${resType}: ${JSON.stringify(resData)}`,
+            userDecision: `${specificResType}: ${JSON.stringify(specificResData)}`,
             finalValue: { status: 'FAILED', reason: !parsed.paidByUserId ? `Unknown payer "${parsed.paidBy || ''}"` : 'Missing date' },
           });
         }
@@ -615,12 +653,19 @@ const importsService = {
 
         createdSettlements++;
         for (const flag of item.anomalyFlags) {
+          let specificResType = resType;
+          let specificResData = resData;
+          if (resType === 'compound') {
+            const subRes = (resData.resolutions || {})[flag.id];
+            specificResType = subRes ? subRes.type : 'pending';
+            specificResData = subRes ? subRes.data : {};
+          }
           reportRows.push({
             importId,
             rowNumber: item.rowNumber,
             originalValue: item.rawData,
             detectedIssue: `${flag.anomalyType} — ${flag.details}`,
-            userDecision: `${resType}: ${JSON.stringify(resData)}`,
+            userDecision: `${specificResType}: ${JSON.stringify(specificResData)}`,
             finalValue: { status: 'IMPORTED', type: 'settlement', id: settlement.id },
           });
         }
@@ -720,12 +765,19 @@ const importsService = {
 
         createdExpenses++;
         for (const flag of item.anomalyFlags) {
+          let specificResType = resType;
+          let specificResData = resData;
+          if (resType === 'compound') {
+            const subRes = (resData.resolutions || {})[flag.id];
+            specificResType = subRes ? subRes.type : 'pending';
+            specificResData = subRes ? subRes.data : {};
+          }
           reportRows.push({
             importId,
             rowNumber: item.rowNumber,
             originalValue: item.rawData,
             detectedIssue: `${flag.anomalyType} — ${flag.details}`,
-            userDecision: `${resType}: ${JSON.stringify(resData)}`,
+            userDecision: `${specificResType}: ${JSON.stringify(specificResData)}`,
             finalValue: { status: 'IMPORTED', type: effectiveAmount < 0 ? 'refund' : 'expense', id: expense.id },
           });
         }
@@ -894,6 +946,14 @@ const importsService = {
         case ANOMALY_TYPES.ZERO_AMOUNT:
           if (resType === 'manual' && resData.correctedAmount != null) {
             parsed.amount = parseFloat(resData.correctedAmount);
+          }
+          break;
+
+        case ANOMALY_TYPES.FORMAT_ERROR:
+          if (resType === 'custom' && resData.correctedAmount != null) {
+            parsed.amount = parseFloat(resData.correctedAmount);
+          } else if (resType === 'accept' && resData.cleanedValue != null) {
+            parsed.amount = parseFloat(resData.cleanedValue);
           }
           break;
       }

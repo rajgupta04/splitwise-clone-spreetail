@@ -45,21 +45,53 @@ export default function ImportReportView({ report, importData }) {
       } catch (e) {}
 
       let actionTaken = resType;
-      if (resType === 'interpretation_a') actionTaken = 'Used 1st Interpretation (DD/MM)';
-      else if (resType === 'interpretation_b') actionTaken = 'Used 2nd Interpretation (MM/DD)';
-      else if (resType === 'accept_rounded') actionTaken = 'Accepted Rounded Amount';
-      else if (resType === 'accept') actionTaken = 'Accepted As Is';
-      else if (resType === 'reject') actionTaken = 'Rejected (Skipped)';
-      else if (resType === 'assign') {
-        actionTaken = resData.participantName ? `Assigned to ${resData.participantName}` : 'Assigned to Participant';
-      }
-      else if (resType === 'custom') {
+      if (resType === 'interpretation_a') {
+        actionTaken = resData.confirmedDate 
+          ? `Used 1st Interpretation: ${resData.confirmedDate}` 
+          : 'Used 1st Interpretation (DD/MM)';
+      } else if (resType === 'interpretation_b') {
+        actionTaken = resData.confirmedDate 
+          ? `Used 2nd Interpretation: ${resData.confirmedDate}` 
+          : 'Used 2nd Interpretation (MM/DD)';
+      } else if (resType === 'confirm') {
+        actionTaken = resData.confirmedDate 
+          ? `Confirmed Date: ${resData.confirmedDate}` 
+          : 'Confirmed Date';
+      } else if (resType === 'accept_rounded') {
+        actionTaken = resData.suggested 
+          ? `Accepted Rounded Amount: ${resData.suggested}` 
+          : 'Accepted Rounded Amount';
+      } else if (resType === 'accept') {
+        if (resData.cleanedValue) actionTaken = `Accepted Cleaned Value: ${resData.cleanedValue}`;
+        else if (resData.selectedUserId) actionTaken = `Accepted Match`;
+        else actionTaken = 'Accepted As Is';
+      } else if (resType === 'reject') {
+        actionTaken = 'Rejected (Skipped)';
+      } else if (resType === 'assign') {
+        actionTaken = resData.participantName 
+          ? `Assigned to ${resData.participantName}` 
+          : 'Assigned to Participant';
+      } else if (resType === 'custom') {
         if (resData.customPayer) actionTaken = `Assigned Payer: ${resData.customPayer}`;
         else if (resData.useAs) actionTaken = `Used custom value: ${resData.useAs}`;
+        else if (resData.correctedAmount) actionTaken = `Entered Custom Amount: ${resData.correctedAmount}`;
+        else if (resData.confirmedDate) actionTaken = `Entered Custom Date: ${resData.confirmedDate}`;
         else actionTaken = 'Used Custom Value';
-      }
-      else if (resType === 'auto-resolved (clean)') actionTaken = 'Auto-Resolved (Clean)';
-      else if (resType) {
+      } else if (resType === 'map') {
+        actionTaken = 'Mapped to Existing User';
+      } else if (resType === 'create') {
+        actionTaken = resData.newMemberName 
+          ? `Created New User: ${resData.newMemberName}` 
+          : 'Created New User';
+      } else if (resType === 'keep_first') {
+        actionTaken = `Kept Row ${resData.keepRowNumber || 'First'}`;
+      } else if (resType === 'keep_second') {
+        actionTaken = `Kept Row ${resData.keepRowNumber || 'Second'}`;
+      } else if (resType === 'auto-resolved (clean)') {
+        actionTaken = 'Auto-Resolved (Clean)';
+      } else if (resType === 'pending') {
+        actionTaken = 'Pending Resolution';
+      } else if (resType) {
         actionTaken = resType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
       } else {
         actionTaken = '—';
@@ -150,23 +182,56 @@ export default function ImportReportView({ report, importData }) {
                 } catch (e) {}
 
                 let actionTaken = resType;
-                if (resType === 'interpretation_a') actionTaken = 'Used 1st Interpretation (DD/MM)';
-                else if (resType === 'interpretation_b') actionTaken = 'Used 2nd Interpretation (MM/DD)';
-                else if (resType === 'accept_rounded') actionTaken = 'Accepted Rounded Amount';
-                else if (resType === 'accept') actionTaken = 'Accepted As Is';
-                else if (resType === 'reject') actionTaken = 'Rejected (Skipped)';
-                else if (resType === 'assign') {
+                if (resType === 'interpretation_a') {
+                  actionTaken = resData.confirmedDate 
+                    ? `Used 1st Interpretation: ${resData.confirmedDate}` 
+                    : 'Used 1st Interpretation (DD/MM)';
+                } else if (resType === 'interpretation_b') {
+                  actionTaken = resData.confirmedDate 
+                    ? `Used 2nd Interpretation: ${resData.confirmedDate}` 
+                    : 'Used 2nd Interpretation (MM/DD)';
+                } else if (resType === 'confirm') {
+                  actionTaken = resData.confirmedDate 
+                    ? `Confirmed Date: ${resData.confirmedDate}` 
+                    : 'Confirmed Date';
+                } else if (resType === 'accept_rounded') {
+                  actionTaken = resData.suggested 
+                    ? `Accepted Rounded Amount: ${resData.suggested}` 
+                    : 'Accepted Rounded Amount';
+                } else if (resType === 'accept') {
+                  if (resData.cleanedValue) actionTaken = `Accepted Cleaned Value: ${resData.cleanedValue}`;
+                  else if (resData.selectedUserId) {
+                    // Try to show the mapped user's name if we had it, but we only have ID here.
+                    actionTaken = `Accepted Match`;
+                  }
+                  else actionTaken = 'Accepted As Is';
+                } else if (resType === 'reject') {
+                  actionTaken = 'Rejected (Skipped)';
+                } else if (resType === 'assign') {
                   actionTaken = resData.participantName 
                     ? `Assigned to ${resData.participantName}` 
                     : 'Assigned to Participant';
-                }
-                else if (resType === 'custom') {
+                } else if (resType === 'custom') {
                   if (resData.customPayer) actionTaken = `Assigned Payer: ${resData.customPayer}`;
                   else if (resData.useAs) actionTaken = `Used custom value: ${resData.useAs}`;
+                  else if (resData.correctedAmount) actionTaken = `Entered Custom Amount: ${resData.correctedAmount}`;
+                  else if (resData.confirmedDate) actionTaken = `Entered Custom Date: ${resData.confirmedDate}`;
                   else actionTaken = 'Used Custom Value';
-                }
-                else if (resType === 'auto-resolved (clean)') actionTaken = 'Auto-Resolved (Clean)';
-                else if (resType) {
+                } else if (resType === 'map') {
+                  actionTaken = 'Mapped to Existing User';
+                } else if (resType === 'create') {
+                  actionTaken = resData.newMemberName 
+                    ? `Created New User: ${resData.newMemberName}` 
+                    : 'Created New User';
+                } else if (resType === 'keep_first') {
+                  actionTaken = `Kept Row ${resData.keepRowNumber || 'First'}`;
+                } else if (resType === 'keep_second') {
+                  actionTaken = `Kept Row ${resData.keepRowNumber || 'Second'}`;
+                } else if (resType === 'auto-resolved (clean)') {
+                  actionTaken = 'Auto-Resolved (Clean)';
+                } else if (resType === 'pending') {
+                  actionTaken = 'Pending Resolution';
+                } else if (resType) {
                   actionTaken = resType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 } else {
                   actionTaken = '—';

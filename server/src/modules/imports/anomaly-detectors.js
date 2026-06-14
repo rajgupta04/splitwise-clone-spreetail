@@ -164,17 +164,21 @@ function parseAmount(amountStr) {
 
   // Strip commas (thousands separator)
   if (cleaned.includes(',')) {
+    const stripped = cleaned.replace(/,/g, '');
     anomalies.push({
       type: ANOMALY_TYPES.FORMAT_ERROR,
       severity: ANOMALY_SEVERITY.INFO,
-      details: `Amount "${cleaned}" contains comma formatting. Stripped to "${cleaned.replace(/,/g, '')}".`,
+      details: `Amount "${cleaned}" contains comma formatting. Stripped to "${stripped}".`,
       field: 'amount',
       rawValue: cleaned,
-      meta: { cleanedValue: cleaned.replace(/,/g, '') },
-      resolutionOptions: [],
-      defaultResolution: null,
+      meta: { cleanedValue: stripped },
+      resolutionOptions: [
+        { id: 'accept', label: `Accept as ${stripped}` },
+        { id: 'custom', label: 'Enter custom amount', requiresInput: true },
+      ],
+      defaultResolution: 'accept',
     });
-    cleaned = cleaned.replace(/,/g, '');
+    cleaned = stripped;
   }
 
   const num = parseFloat(cleaned);
