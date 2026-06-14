@@ -12,5 +12,6 @@ router.post('/login', validate(loginSchema), authController.login);
 
 // Protected routes
 router.get('/me', authMiddleware, authController.getProfile);
+router.put('/me/currency', authMiddleware, authController.updateCurrency);
 
 module.exports = router;

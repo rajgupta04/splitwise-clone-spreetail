@@ -40,6 +40,18 @@ const authController = {
       return next(error);
     }
   },
+
+  /**
+   * PUT /api/auth/me/currency
+   */
+  async updateCurrency(req, res, next) {
+    try {
+      const user = await authService.updateCurrency(req.user.id, req.body.currency);
+      return ApiResponse.success(res, { user }, 'Currency updated successfully');
+    } catch (error) {
+      return next(error);
+    }
+  },
 };
 
 module.exports = authController;

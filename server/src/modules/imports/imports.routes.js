@@ -5,7 +5,7 @@ const upload = require('../../middleware/upload.middleware');
 const { validate } = require('../../middleware/validation.middleware');
 const {
   groupIdParamSchema, importIdParamSchema,
-  decideItemSchema, listItemsSchema,
+  decideItemSchema, resolveItemSchema, executeImportSchema, listItemsSchema,
 } = require('./imports.validation');
 
 const router = Router();
@@ -33,6 +33,19 @@ router.post(
   validate(decideItemSchema),
   importsController.decideItem
 );
+
+// New resolution endpoints
+router.patch(
+  '/imports/:importId/items/:itemId/resolve',
+  validate(resolveItemSchema),
+  importsController.resolveItem
+);
+router.post(
+  '/imports/:importId/execute',
+  validate(executeImportSchema),
+  importsController.executeImport
+);
+
 router.post(
   '/imports/:importId/finalize',
   validate(importIdParamSchema),

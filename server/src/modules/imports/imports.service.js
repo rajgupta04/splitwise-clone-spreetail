@@ -164,6 +164,9 @@ const importsService = {
           ? IMPORT_ITEM_STATUS.FLAGGED
           : IMPORT_ITEM_STATUS.CLEAN;
 
+      // Clean items auto-resolve (no anomalies to decide on)
+      const importStatus = status === IMPORT_ITEM_STATUS.CLEAN ? 'resolved' : 'pending';
+
       // Build parsed data
       const payerMatch = detectors.fuzzyMatchUser(parsed.raw.paid_by, allUsers);
       const currency = (parsed.raw.currency || '').trim() || group.baseCurrency;
@@ -190,6 +193,7 @@ const importsService = {
         rawData: parsed.raw,
         parsedData,
         status,
+        importStatus,
         anomalies,
       };
     });
@@ -216,6 +220,7 @@ const importsService = {
             rawData: item.rawData,
             parsedData: item.parsedData,
             status: item.status,
+            importStatus: item.importStatus,
           },
         });
 
@@ -227,6 +232,9 @@ const importsService = {
               anomalyType: anomaly.type,
               severity: anomaly.severity,
               details: anomaly.details,
+              meta: anomaly.meta || {},
+              resolutionOptions: anomaly.resolutionOptions || [],
+              defaultResolution: anomaly.defaultResolution || null,
             },
           });
         }
@@ -382,7 +390,519 @@ const importsService = {
   },
 
   /**
+   * Resolve a single import item's anomaly with structured resolution data.
+   */
+  async resolveItem(importId, itemId, userId, { resolutionType, resolutionData }) {
+    const csvImport = await this.getImportById(importId, userId);
+
+    // Only the uploader can resolve
+    if (csvImport.uploadedById !== userId) {
+      const error = new Error('Only the uploader can resolve import items.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    // Verify import is in reviewable state
+    if (csvImport.status !== IMPORT_STATUS.PENDING_REVIEW) {
+      const error = new Error('This import is not in a reviewable state.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Get the item
+    const item = await importsRepository.findItemById(itemId);
+    if (!item || item.importId !== importId) {
+      const error = new Error('Import item not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Determine import_status based on resolution type
+    const skipResolutions = ['skip', 'reject', 'reject_row'];
+    const importStatus = skipResolutions.includes(resolutionType) ? 'skipped' : 'resolved';
+
+    // Update the item with resolution data
+    const updatedItem = await importsRepository.resolveItem(itemId, {
+      resolutionType,
+      resolutionData: resolutionData || {},
+      resolvedById: userId,
+      importStatus,
+    });
+
+    // Log activity
+    await logActivity(prisma, {
+      userId,
+      action: ACTIVITY_ACTIONS.IMPORT_ITEM_RESOLVED,
+      entityType: ENTITY_TYPES.IMPORT_ITEM,
+      entityId: itemId,
+      metadata: { importId, resolutionType, resolutionData },
+    });
+
+    return updatedItem;
+  },
+
+  /**
+   * Execute an import — create expenses/settlements from all resolved items
+   * using their resolution_data for decisions.
+   */
+  async executeImport(importId, userId) {
+    const csvImport = await this.getImportById(importId, userId);
+
+    if (csvImport.uploadedById !== userId) {
+      const error = new Error('Only the uploader can execute an import.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    if (csvImport.status !== IMPORT_STATUS.PENDING_REVIEW) {
+      const error = new Error('This import is not ready for execution.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Get all items
+    const items = await importsRepository.findItemsByImportId(importId);
+
+    // We allow partial execution now, but we only process items that haven't been imported yet
+    const pendingItems = items.filter((i) => i.importStatus === 'pending');
+
+    const group = await prisma.group.findUnique({ where: { id: csvImport.groupId } });
+    const allUsers = await prisma.user.findMany({ select: { id: true, name: true, email: true } });
+    const allMemberships = await prisma.groupMembership.findMany({
+      where: { groupId: csvImport.groupId },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+
+    const resolvedItems = items.filter((i) => i.importStatus === 'resolved' && i.status !== 'imported' && i.status !== 'failed');
+    const skippedItems = items.filter((i) => i.importStatus === 'skipped' && i.status !== 'imported' && i.status !== 'failed');
+
+    let createdExpenses = 0;
+    let createdSettlements = 0;
+    const reportRows = [];
+
+    // Build a set of row numbers that should be skipped due to duplicate resolution
+    const skipDueToDuplicate = new Set();
+    for (const item of items) {
+      if (item.resolutionType === 'keep_first' || item.resolutionType === 'keep_second') {
+        // Find the anomaly flag for duplicate_expense to get the row info
+        const dupFlag = item.anomalyFlags.find((f) => f.anomalyType === ANOMALY_TYPES.DUPLICATE_EXPENSE);
+        if (dupFlag && item.resolutionData) {
+          const keepRow = item.resolutionType === 'keep_first'
+            ? item.resolutionData.keepRowNumber || item.resolutionData.rowA
+            : item.resolutionData.keepRowNumber || item.resolutionData.rowB;
+          const discardRow = item.resolutionType === 'keep_first'
+            ? item.resolutionData.discardRowNumber || item.resolutionData.rowB
+            : item.resolutionData.discardRowNumber || item.resolutionData.rowA;
+          if (discardRow) {
+            skipDueToDuplicate.add(typeof discardRow === 'object' ? discardRow : discardRow);
+          }
+        }
+      }
+    }
+
+    // Process skipped items for reporting
+    for (const item of skippedItems) {
+      for (const flag of item.anomalyFlags) {
+        reportRows.push({
+          importId,
+          rowNumber: item.rowNumber,
+          originalValue: item.rawData,
+          detectedIssue: `${flag.anomalyType} — ${flag.details}`,
+          userDecision: `${item.resolutionType}: ${JSON.stringify(item.resolutionData || {})}`,
+          finalValue: { status: 'SKIPPED', reason: item.resolutionType },
+        });
+      }
+      if (item.anomalyFlags.length === 0) {
+        reportRows.push({
+          importId,
+          rowNumber: item.rowNumber,
+          originalValue: item.rawData,
+          detectedIssue: 'skipped',
+          userDecision: `${item.resolutionType}: ${JSON.stringify(item.resolutionData || {})}`,
+          finalValue: { status: 'SKIPPED', reason: item.resolutionType },
+        });
+      }
+    }
+
+    // Process resolved items
+    for (const item of resolvedItems) {
+      const parsed = { ...(item.parsedData || {}) };
+      const resData = item.resolutionData || {};
+      const resType = item.resolutionType;
+
+      // Apply resolution overrides to parsed data
+      this._applyResolutions(parsed, item, resType, resData, allUsers, allMemberships, group);
+
+      if (!parsed.paidByUserId || !parsed.date) {
+        await importsRepository.updateItemStatus(item.id, IMPORT_ITEM_STATUS.FAILED);
+        for (const flag of item.anomalyFlags) {
+          reportRows.push({
+            importId,
+            rowNumber: item.rowNumber,
+            originalValue: item.rawData,
+            detectedIssue: `${flag.anomalyType} — ${flag.details}`,
+            userDecision: `${resType}: ${JSON.stringify(resData)}`,
+            finalValue: { status: 'FAILED', reason: !parsed.paidByUserId ? `Unknown payer "${parsed.paidBy || ''}"` : 'Missing date' },
+          });
+        }
+        continue;
+      }
+
+      // Determine exchange rate for non-base currencies
+      let exchangeRate = 1;
+      let normalizedAmount = Math.abs(parsed.amount);
+      const currency = parsed.currency || group.baseCurrency;
+
+      if (currency !== group.baseCurrency) {
+        try {
+          // Check if user provided a manual exchange rate
+          if (resData.exchangeRate) {
+            exchangeRate = parseFloat(resData.exchangeRate);
+            normalizedAmount = currencyService.convertAmount(Math.abs(parsed.amount), exchangeRate);
+          } else {
+            exchangeRate = await currencyService.getExchangeRate(currency, group.baseCurrency, parsed.date);
+            normalizedAmount = currencyService.convertAmount(Math.abs(parsed.amount), exchangeRate);
+          }
+        } catch (e) {
+          // Fallback: use amount as-is
+          exchangeRate = 1;
+          normalizedAmount = Math.abs(parsed.amount);
+        }
+      }
+
+      if (parsed.isSettlement) {
+        // Create a settlement record
+        const recipientName = parsed.splitWith[0];
+        const recipientMatch = detectors.fuzzyMatchUser(recipientName, allUsers);
+
+        if (!recipientMatch.matched) {
+          await importsRepository.updateItemStatus(item.id, IMPORT_ITEM_STATUS.FAILED);
+          reportRows.push({
+            importId,
+            rowNumber: item.rowNumber,
+            originalValue: item.rawData,
+            detectedIssue: `unknown_recipient — ${recipientName}`,
+            userDecision: `${resType}: ${JSON.stringify(resData)}`,
+            finalValue: { status: 'FAILED', reason: `Unknown settlement recipient "${recipientName}"` },
+          });
+          continue;
+        }
+
+        const recipientId = recipientMatch.user.id;
+
+        const settlement = await prisma.$transaction(async (tx) => {
+          const s = await tx.settlement.create({
+            data: {
+              groupId: csvImport.groupId,
+              payerId: parsed.paidByUserId,
+              payeeId: recipientId,
+              originalAmount: Math.abs(parsed.amount),
+              originalCurrency: group.baseCurrency,
+              exchangeRate: 1,
+              normalizedAmount,
+              settledAt: new Date(parsed.date),
+              createdById: userId,
+            },
+          });
+
+          await tx.importItem.update({
+            where: { id: item.id },
+            data: { status: IMPORT_ITEM_STATUS.IMPORTED },
+          });
+
+          return s;
+        });
+
+        createdSettlements++;
+        for (const flag of item.anomalyFlags) {
+          reportRows.push({
+            importId,
+            rowNumber: item.rowNumber,
+            originalValue: item.rawData,
+            detectedIssue: `${flag.anomalyType} — ${flag.details}`,
+            userDecision: `${resType}: ${JSON.stringify(resData)}`,
+            finalValue: { status: 'IMPORTED', type: 'settlement', id: settlement.id },
+          });
+        }
+        if (item.anomalyFlags.length === 0) {
+          reportRows.push({
+            importId,
+            rowNumber: item.rowNumber,
+            originalValue: item.rawData,
+            detectedIssue: 'none',
+            userDecision: 'auto-resolved (clean)',
+            finalValue: { status: 'IMPORTED', type: 'settlement', id: settlement.id },
+          });
+        }
+      } else {
+        // Create an expense with splits
+        const splitType = parsed.splitType || SPLIT_TYPES.EQUAL;
+        const participants = parsed.splitWith
+          .map((name) => detectors.fuzzyMatchUser(name, allUsers))
+          .filter((m) => m.matched)
+          .map((m) => m.user);
+
+        if (participants.length === 0) {
+          await importsRepository.updateItemStatus(item.id, IMPORT_ITEM_STATUS.FAILED);
+          reportRows.push({
+            importId,
+            rowNumber: item.rowNumber,
+            originalValue: item.rawData,
+            detectedIssue: 'no_participants',
+            userDecision: `${resType}: ${JSON.stringify(resData)}`,
+            finalValue: { status: 'FAILED', reason: 'No recognized participants for split' },
+          });
+          continue;
+        }
+
+        const amount = parsed.amount < 0 ? parsed.amount : parsed.amount; // preserve sign for refunds
+        const absAmount = Math.abs(amount);
+
+        // Handle negative amount resolution
+        let effectiveAmount = amount;
+        let effectiveNormalized = normalizedAmount;
+        if (resType === 'as_positive' && amount < 0) {
+          effectiveAmount = Math.abs(amount);
+          effectiveNormalized = normalizedAmount;
+        }
+
+        // Calculate splits
+        const splitsData = this._calculateSplits(
+          splitType, absAmount, normalizedAmount, exchangeRate,
+          participants, parsed.splitDetails
+        );
+
+        // Handle negative amounts (refunds): invert the split amounts
+        if (effectiveAmount < 0) {
+          splitsData.forEach((s) => {
+            s.originalAmount = -Math.abs(s.originalAmount);
+            s.normalizedAmount = -Math.abs(s.normalizedAmount);
+          });
+        }
+
+        const expense = await prisma.$transaction(async (tx) => {
+          const exp = await tx.expense.create({
+            data: {
+              groupId: csvImport.groupId,
+              paidById: parsed.paidByUserId,
+              description: parsed.description,
+              originalAmount: effectiveAmount,
+              originalCurrency: currency,
+              exchangeRate,
+              normalizedAmount: effectiveAmount < 0 ? -normalizedAmount : normalizedAmount,
+              splitType,
+              expenseDate: new Date(parsed.date),
+              createdById: userId,
+              importItemId: item.id,
+            },
+          });
+
+          for (const split of splitsData) {
+            await tx.expenseSplit.create({
+              data: {
+                expenseId: exp.id,
+                userId: split.userId,
+                originalAmount: split.originalAmount,
+                normalizedAmount: split.normalizedAmount,
+                percentage: split.percentage || null,
+                shares: split.shares || null,
+              },
+            });
+          }
+
+          await tx.importItem.update({
+            where: { id: item.id },
+            data: { status: IMPORT_ITEM_STATUS.IMPORTED },
+          });
+
+          return exp;
+        });
+
+        createdExpenses++;
+        for (const flag of item.anomalyFlags) {
+          reportRows.push({
+            importId,
+            rowNumber: item.rowNumber,
+            originalValue: item.rawData,
+            detectedIssue: `${flag.anomalyType} — ${flag.details}`,
+            userDecision: `${resType}: ${JSON.stringify(resData)}`,
+            finalValue: { status: 'IMPORTED', type: 'expense', id: expense.id },
+          });
+        }
+        if (item.anomalyFlags.length === 0) {
+          reportRows.push({
+            importId,
+            rowNumber: item.rowNumber,
+            originalValue: item.rawData,
+            detectedIssue: 'none',
+            userDecision: 'auto-resolved (clean)',
+            finalValue: { status: 'IMPORTED', type: 'expense', id: expense.id },
+          });
+        }
+      }
+    }
+
+    // Write import report rows
+    for (const row of reportRows) {
+      await importsRepository.createImportReport(row);
+    }
+
+    // Update import status
+    const finalStatus = skippedItems.length === 0
+      ? IMPORT_STATUS.COMPLETED
+      : IMPORT_STATUS.PARTIALLY_COMPLETED;
+
+    await importsRepository.updateStatus(importId, {
+      status: finalStatus,
+      approvedRows: resolvedItems.length,
+      rejectedRows: skippedItems.length,
+    });
+
+    await logActivity(prisma, {
+      userId,
+      action: ACTIVITY_ACTIONS.IMPORT_EXECUTED,
+      entityType: ENTITY_TYPES.IMPORT,
+      entityId: importId,
+      metadata: {
+        imported: createdExpenses + createdSettlements,
+        skipped: skippedItems.length,
+        createdExpenses,
+        createdSettlements,
+      },
+    });
+
+    return {
+      imported: createdExpenses + createdSettlements,
+      skipped: skippedItems.length,
+      createdExpenses,
+      createdSettlements,
+      report: reportRows,
+    };
+  },
+
+  /**
+   * Apply resolution data overrides to parsed data before finalization.
+   */
+  _applyResolutions(parsed, item, resType, resData, allUsers, allMemberships, group) {
+    for (const flag of item.anomalyFlags) {
+      switch (flag.anomalyType) {
+        case ANOMALY_TYPES.AMBIGUOUS_DATE:
+          if (resData.confirmedDate) {
+            parsed.date = resData.confirmedDate;
+          }
+          break;
+
+        case ANOMALY_TYPES.INVALID_DATE:
+          if (resData.confirmedDate) {
+            parsed.date = resData.confirmedDate;
+          }
+          break;
+
+        case ANOMALY_TYPES.NAME_MISMATCH:
+        case ANOMALY_TYPES.UNKNOWN_PARTICIPANT:
+          if ((resType === 'map' || resType === 'accept') && resData.selectedUserId) {
+            const mappedUser = allUsers.find((u) => u.id === resData.selectedUserId);
+            if (mappedUser) {
+              const unknownName = resData.unknownName || '';
+              if (flag.details.includes('Payer')) {
+                parsed.paidBy = mappedUser.name;
+                parsed.paidByUserId = mappedUser.id;
+              } else {
+                parsed.splitWith = parsed.splitWith.map((n) =>
+                  detectors.normalizeName(n) === detectors.normalizeName(unknownName) ? mappedUser.name : n
+                );
+              }
+            }
+          } else if (resType === 'exclude') {
+            const unknownName = resData.unknownName || '';
+            parsed.splitWith = parsed.splitWith.filter(
+              (n) => detectors.normalizeName(n) !== detectors.normalizeName(unknownName)
+            );
+          }
+          break;
+
+        case ANOMALY_TYPES.MEMBERSHIP_VIOLATION:
+          if (resType === 'remove') {
+            const violatingMember = resData.violatingMember || '';
+            parsed.splitWith = parsed.splitWith.filter(
+              (n) => detectors.normalizeName(n) !== detectors.normalizeName(violatingMember)
+            );
+          }
+          break;
+
+        case ANOMALY_TYPES.SETTLEMENT_AS_EXPENSE:
+          if (resType === 'as_settlement') {
+            parsed.isSettlement = true;
+          } else if (resType === 'as_expense') {
+            parsed.isSettlement = false;
+          }
+          break;
+
+        case ANOMALY_TYPES.MISSING_FIELDS:
+          if (resType === 'assign' && resData.selectedUserId) {
+            const assignedUser = allUsers.find((u) => u.id === resData.selectedUserId);
+            if (assignedUser) {
+              parsed.paidBy = assignedUser.name;
+              parsed.paidByUserId = assignedUser.id;
+            }
+          }
+          break;
+
+        case ANOMALY_TYPES.ROUNDING_ISSUE:
+          if (resType === 'custom' && resData.correctedAmount != null) {
+            parsed.amount = parseFloat(resData.correctedAmount);
+          } else if (resType === 'accept_rounded' && resData.suggested != null) {
+            parsed.amount = parseFloat(resData.suggested);
+          }
+          break;
+
+        case ANOMALY_TYPES.MISSING_CURRENCY:
+          if (resType === 'use_default') {
+            parsed.currency = group.baseCurrency;
+          } else if (resType === 'manual' && resData.currency) {
+            parsed.currency = resData.currency;
+          }
+          break;
+
+        case ANOMALY_TYPES.INVALID_SPLIT:
+          if (resType === 'scale') {
+            // Scale percentages proportionally handled by _calculateSplits
+          } else if (resType === 'manual' && resData.adjustedPercentages) {
+            // Override split details with user-provided percentages
+            parsed.splitDetails = Object.entries(resData.adjustedPercentages).map(
+              ([name, pct]) => ({ name, value: parseFloat(pct) })
+            );
+          }
+          break;
+
+        case ANOMALY_TYPES.NEGATIVE_AMOUNT:
+          if (resType === 'as_positive') {
+            parsed.amount = Math.abs(parsed.amount);
+          }
+          break;
+
+        case ANOMALY_TYPES.CONFLICTING_SPLIT_DATA:
+          if (resType === 'use_type') {
+            // Keep splitType as-is (equal), ignore details
+            parsed.splitDetails = [];
+          } else if (resType === 'use_details') {
+            // Override splitType to match the details (shares)
+            parsed.splitType = SPLIT_TYPES.SHARES;
+          }
+          break;
+
+        case ANOMALY_TYPES.ZERO_AMOUNT:
+          if (resType === 'manual' && resData.correctedAmount != null) {
+            parsed.amount = parseFloat(resData.correctedAmount);
+          }
+          break;
+      }
+    }
+  },
+
+  /**
    * Finalize an import — create expenses/settlements from all approved items.
+   * (Legacy method — kept for backward compatibility)
    */
   async finalizeImport(importId, userId) {
     const csvImport = await this.getImportById(importId, userId);
@@ -482,7 +1002,7 @@ const importsService = {
               originalCurrency: group.baseCurrency,
               exchangeRate: 1,
               normalizedAmount,
-              settlementDate: new Date(parsed.date),
+              settledAt: new Date(parsed.date),
               createdById: userId,
             },
           });
@@ -570,14 +1090,15 @@ const importsService = {
     }
 
     // Update import status
-    const finalStatus = rejected.length === 0
-      ? IMPORT_STATUS.COMPLETED
-      : IMPORT_STATUS.PARTIALLY_COMPLETED;
+    let finalStatus = csvImport.status;
+    if (pendingItems.length === 0) {
+      finalStatus = rejected.length === 0 ? IMPORT_STATUS.COMPLETED : IMPORT_STATUS.PARTIALLY_COMPLETED;
+    }
 
     await importsRepository.updateStatus(importId, {
       status: finalStatus,
-      approvedRows: approved.length,
-      rejectedRows: rejected.length,
+      approvedRows: (csvImport.approvedRows || 0) + approved.length,
+      rejectedRows: (csvImport.rejectedRows || 0) + rejected.length,
     });
 
     await logActivity(prisma, {
@@ -702,6 +1223,7 @@ const importsService = {
     const csvImport = await this.getImportById(importId, userId);
     const items = await importsRepository.findItemsByImportId(importId);
     const decisions = await importsRepository.getDecisionsByImportId(importId);
+    const reports = await importsRepository.findReportsByImportId(importId);
 
     return {
       import: csvImport,
@@ -715,11 +1237,15 @@ const importsService = {
       items: items.map((item) => ({
         rowNumber: item.rowNumber,
         status: item.status,
+        importStatus: item.importStatus,
         rawData: item.rawData,
         parsedData: item.parsedData,
         anomalies: item.anomalyFlags,
         decisions: item.decisions,
+        resolutionType: item.resolutionType,
+        resolutionData: item.resolutionData,
       })),
+      reports,
       decisionLog: decisions,
     };
   },

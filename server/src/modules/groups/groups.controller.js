@@ -14,6 +14,15 @@ const groupsController = {
     }
   },
 
+  async createMockGroup(req, res, next) {
+    try {
+      const group = await groupsService.createMockTestGroup(req.user.id);
+      return ApiResponse.created(res, { group }, 'Mock Test Group created successfully');
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async list(req, res, next) {
     try {
       const groups = await groupsService.getUserGroups(req.user.id);

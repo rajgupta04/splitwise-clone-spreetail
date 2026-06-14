@@ -261,3 +261,172 @@
   background: rgba(148, 163, 184, 0.15);
   color: #94a3b8;
 }
+
+/* ─── RESOLUTION MODAL ──────────────────────────────────────────────────── */
+.resolution-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.resolution-modal {
+  background: var(--color-bg-card);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.resolution-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.resolution-modal-body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.resolution-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.resolution-context {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+/* ─── RADIO OPTIONS ─────────────────────────────────────────────────────── */
+.resolution-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+}
+
+.resolution-option:hover {
+  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.resolution-option.selected {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--color-primary);
+}
+
+.resolution-radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.resolution-option.selected .resolution-radio {
+  border-color: var(--color-primary);
+}
+
+.resolution-radio-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* ─── COMPARISON TABLE ──────────────────────────────────────────────────── */
+.resolution-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.resolution-table thead tr {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.resolution-table thead th {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.resolution-table tbody tr {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.06);
+}
+
+.resolution-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ─── EXECUTE TOOLTIP ───────────────────────────────────────────────────── */
+.execute-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  z-index: 10;
+}
+
+.execute-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 16px;
+  border: 6px solid transparent;
+  border-top-color: var(--color-bg-elevated);
+}
+
+.group:hover .execute-tooltip {
+  display: block;
+}
+
+/* ─── SR ONLY (screen reader) ───────────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+

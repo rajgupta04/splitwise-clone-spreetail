@@ -17,9 +17,10 @@ model User {
   id           String   @id @default(uuid())
   email        String   @unique
   name         String
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  passwordHash      String   @map("password_hash")
+  preferredCurrency String   @default("INR") @map("preferred_currency") @db.VarChar(3)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   // Relations
   createdGroups      Group[]           @relation("GroupCreator")
@@ -33,6 +34,7 @@ model User {
   csvImports         CsvImport[]
   importDecisions    ImportDecision[]
   activityLogs       ActivityLog[]
+  resolvedItems      ImportItem[]      @relation("ItemResolver")
 
   @@map("users")
 }
@@ -174,9 +176,10 @@ model CsvImport {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
-  group      Group        @relation(fields: [groupId], references: [id])
-  uploadedBy User         @relation(fields: [uploadedById], references: [id])
+  group      Group          @relation(fields: [groupId], references: [id])
+  uploadedBy User           @relation(fields: [uploadedById], references: [id])
   items      ImportItem[]
+  reports    ImportReport[]
 
   @@index([groupId])
   @@map("csv_imports")
@@ -185,20 +188,27 @@ model CsvImport {
 // ─── IMPORT ITEM ─────────────────────────────────────────────────────────────
 
 model ImportItem {
-  id         String   @id @default(uuid())
-  importId   String   @map("import_id")
-  rowNumber  Int      @map("row_number")
-  rawData    Json     @map("raw_data")
-  parsedData Json?    @map("parsed_data")
-  status     String   @default("pending") @db.VarChar(20)
+  id             String    @id @default(uuid())
+  importId       String    @map("import_id")
+  rowNumber      Int       @map("row_number")
+  rawData        Json      @map("raw_data")
+  parsedData     Json?     @map("parsed_data")
+  status         String    @default("pending") @db.VarChar(20)
   // status: 'pending' | 'clean' | 'flagged' | 'approved' | 'rejected' | 'error'
-  createdAt  DateTime @default(now()) @map("created_at")
+  resolutionType String?   @map("resolution_type") @db.VarChar(50)
+  resolutionData Json?     @map("resolution_data")
+  resolvedById   String?   @map("resolved_by")
+  resolvedAt     DateTime? @map("resolved_at")
+  importStatus   String    @default("pending") @map("import_status") @db.VarChar(20)
+  // importStatus: 'pending' | 'resolved' | 'skipped' | 'rejected'
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   // Relations
   csvImport    CsvImport       @relation(fields: [importId], references: [id])
   anomalyFlags AnomalyFlag[]
   decisions    ImportDecision[]
   expense      Expense?
+  resolvedBy   User?           @relation("ItemResolver", fields: [resolvedById], references: [id])
 
   @@index([importId])
   @@map("import_items")
@@ -207,15 +217,15 @@ model ImportItem {
 // ─── ANOMALY FLAG ────────────────────────────────────────────────────────────
 
 model AnomalyFlag {
-  id           String   @id @default(uuid())
-  importItemId String   @map("import_item_id")
-  anomalyType  String   @map("anomaly_type") @db.VarChar(30)
-  // anomalyType: 'duplicate_expense' | 'amount_outlier' | 'membership_violation' |
-  //              'future_dated' | 'missing_fields' | 'invalid_split' | 'unknown_participant'
-  severity     String   @db.VarChar(10)
-  // severity: 'error' | 'warning' | 'info'
-  details      String
-  createdAt    DateTime @default(now()) @map("created_at")
+  id                String   @id @default(uuid())
+  importItemId      String   @map("import_item_id")
+  anomalyType       String   @map("anomaly_type") @db.VarChar(30)
+  severity          String   @db.VarChar(10)
+  details           String
+  meta              Json?
+  resolutionOptions Json?    @map("resolution_options")
+  defaultResolution String?  @map("default_resolution") @db.VarChar(50)
+  createdAt         DateTime @default(now()) @map("created_at")
 
   // Relations
   importItem ImportItem @relation(fields: [importItemId], references: [id])
@@ -265,4 +275,23 @@ model ActivityLog {
   @@index([entityType, entityId])
   @@index([userId])
   @@map("activity_logs")
+}
+
+// ─── IMPORT REPORT (AUDIT TRAIL) ─────────────────────────────────────────────
+
+model ImportReport {
+  id            String   @id @default(uuid())
+  importId      String   @map("import_id")
+  rowNumber     Int      @map("row_number")
+  originalValue Json     @map("original_value")
+  detectedIssue String   @map("detected_issue")
+  userDecision  String   @map("user_decision")
+  finalValue    Json?    @map("final_value")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  csvImport CsvImport @relation(fields: [importId], references: [id])
+
+  @@index([importId])
+  @@map("import_reports")
 }
