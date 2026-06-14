@@ -726,7 +726,7 @@ const importsService = {
             originalValue: item.rawData,
             detectedIssue: `${flag.anomalyType} — ${flag.details}`,
             userDecision: `${resType}: ${JSON.stringify(resData)}`,
-            finalValue: { status: 'IMPORTED', type: 'expense', id: expense.id },
+            finalValue: { status: 'IMPORTED', type: effectiveAmount < 0 ? 'refund' : 'expense', id: expense.id },
           });
         }
         if (item.anomalyFlags.length === 0) {
@@ -736,7 +736,7 @@ const importsService = {
             originalValue: item.rawData,
             detectedIssue: 'none',
             userDecision: 'auto-resolved (clean)',
-            finalValue: { status: 'IMPORTED', type: 'expense', id: expense.id },
+            finalValue: { status: 'IMPORTED', type: effectiveAmount < 0 ? 'refund' : 'expense', id: expense.id },
           });
         }
       }

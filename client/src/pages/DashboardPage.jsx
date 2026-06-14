@@ -11,31 +11,32 @@ import {
 import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
-  const { user, logout, updateCurrency } = useAuth();
+  const { user, logout, updateCurrency, demoAccounts, switchAccount } = useAuth();
   const navigate = useNavigate();
   const [groups, setGroups] = useState([]);
   const [balanceSummary, setBalanceSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
     try {
+      setLoading(true);
       const [groupsRes, balancesRes] = await Promise.all([
         groupsApi.list(),
-        balancesApi.getUserSummary(),
+        balancesApi.getUserSummary()
       ]);
       setGroups(groupsRes.data.data.groups);
       setBalanceSummary(balancesRes.data.data.summary);
     } catch (err) {
-      toast.error('Failed to load data');
+      toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, [user?.id]); // Reload data when user changes (e.g., account switch)
 
   const handleCreateGroup = async (data) => {
     try {
@@ -51,7 +52,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-[var(--color-text-muted)]">Loading...</div>
+        <div className="animate-spin w-8 h-8 border-4 border-[var(--color-primary)] border-t-transparent rounded-full"></div>
       </div>
     );
   }
@@ -63,7 +64,23 @@ export default function DashboardPage() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold gradient-text">Splitwise</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-[var(--color-text-muted)]">{user?.name}</span>
+            {demoAccounts && demoAccounts.length > 0 ? (
+              <select
+                className="input py-1 px-2 text-xs border-[var(--color-border)] text-emerald-400 font-bold"
+                style={{ minHeight: 'auto', background: 'var(--color-bg-card)' }}
+                value={user?.id}
+                onChange={(e) => {
+                  switchAccount(e.target.value);
+                  toast.success('Switched account');
+                }}
+              >
+                {demoAccounts.map(acc => (
+                  <option key={acc.user.id} value={acc.user.id}>👤 Switch to: {acc.user.name}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-sm text-[var(--color-text-muted)]">{user?.name}</span>
+            )}
             <select
               className="input py-1 px-2 text-xs border-[var(--color-border)]"
               style={{ minHeight: 'auto', background: 'var(--color-bg-card)' }}
