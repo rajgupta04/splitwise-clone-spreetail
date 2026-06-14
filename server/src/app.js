@@ -19,11 +19,24 @@ const app = express();
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 
 // CORS
+const allowedOrigins = [
+  env.CLIENT_URL,
+  env.CLIENT_URL.replace(/\/$/, ''),
+  'http://localhost:5173'
+];
+
 app.use(cors({
-  origin: env.CLIENT_URL,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    return callback(null, false); // fallback
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
 }));
 
 // Body parsers
