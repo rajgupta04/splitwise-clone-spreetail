@@ -35,12 +35,15 @@ const balancesService = {
     // Verify user has access
     const membership = await prisma.groupMembership.findFirst({
       where: { groupId, userId },
+      include: { user: { select: { preferredCurrency: true } } },
     });
     if (!membership) {
       const error = new Error('You are not a member of this group.');
       error.statusCode = 403;
       throw error;
     }
+
+    const preferredCurrency = membership.user.preferredCurrency || 'INR';
 
     // Get group info
     const group = await prisma.group.findUnique({
@@ -94,8 +97,25 @@ const balancesService = {
     // Step 4: Simplify debts
     const simplifiedDebts = this._simplifyDebts(netBalances, userMap);
 
+    // Apply personal currency conversion if needed
+    const currencyService = require('../currency/currency.service');
+    let exchangeRate = 1;
+    if (preferredCurrency !== group.baseCurrency) {
+      try {
+        exchangeRate = await currencyService.getExchangeRate(group.baseCurrency, preferredCurrency, new Date());
+      } catch (e) {
+        exchangeRate = 1; // Fallback
+      }
+    }
+
+    if (exchangeRate !== 1) {
+      memberBalances.forEach(mb => mb.balance = parseFloat((mb.balance * exchangeRate).toFixed(2)));
+      simplifiedDebts.forEach(d => d.amount = parseFloat((d.amount * exchangeRate).toFixed(2)));
+    }
+
     return {
-      currency: group.baseCurrency,
+      currency: exchangeRate !== 1 ? preferredCurrency : group.baseCurrency,
+      originalCurrency: group.baseCurrency,
       memberBalances,
       simplifiedDebts,
     };

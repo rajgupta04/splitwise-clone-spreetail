@@ -368,3 +368,11 @@
 - **Temporal Memberships**: `joined_at` + `left_at` enables the system to know exactly who was a member on any given date. This directly addresses Sam's requirement (*"Why would March electricity affect my balance?"*) and powers ANOM-017 detection.
 - **Multi-Currency Fields**: `original_amount` + `original_currency` + `exchange_rate` + `normalized_amount` preserves the audit trail while enabling consistent balance math in the group's base currency. This addresses Priya's requirement (*"The sheet pretends a dollar is a rupee."*).
 - **Import Pipeline Chain**: `csv_imports` → `import_items` → `anomaly_flags` / `import_decisions` → `expenses` enables the full review workflow. This addresses Meera's requirement (*"I want to approve anything the app deletes or changes."*).
+
+
+## Recent Updates (CSV Import & Personal Currency)
+- **Global Personal Currency**: Added preferredCurrency to user profile, updating the Dashboard to reflect balances converted to the user's local currency using real-time mock exchange rates.
+- **Mock Test Group**: Integrated a one-click Mock Test Group (INR) generator on the Import page that reads the provided sample CSV and auto-creates identical users (Aisha, Rohan, Priya, Meera, Dev) for testing.
+- **Interactive Anomaly Resolution**: Upgraded the ResolutionModal to display full raw data context (Description, Amount, Paid By) for each anomaly, streamlining user decisions.
+- **CSV Execution Handler**: Finalized the execution loop that commits resolved ImportItem records to the main Expense and Settlement tables.
+

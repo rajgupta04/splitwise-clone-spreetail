@@ -428,3 +428,11 @@ The dominant format is **DD-MM-YYYY**. The parser should use this as the canonic
 | 10 | How to handle comma-formatted numbers? | Strip commas silently, or flag |
 | 11 | How to handle name variations? | Fuzzy match to registered users, flag unmatched |
 | 12 | How to handle conflicting split_type vs split_details? | Prefer split_type, ignore redundant details, flag |
+
+
+## Recent Updates (CSV Import & Personal Currency)
+- **Global Personal Currency**: Added preferredCurrency to user profile, updating the Dashboard to reflect balances converted to the user's local currency using real-time mock exchange rates.
+- **Mock Test Group**: Integrated a one-click Mock Test Group (INR) generator on the Import page that reads the provided sample CSV and auto-creates identical users (Aisha, Rohan, Priya, Meera, Dev) for testing.
+- **Interactive Anomaly Resolution**: Upgraded the ResolutionModal to display full raw data context (Description, Amount, Paid By) for each anomaly, streamlining user decisions.
+- **CSV Execution Handler**: Finalized the execution loop that commits resolved ImportItem records to the main Expense and Settlement tables.
+

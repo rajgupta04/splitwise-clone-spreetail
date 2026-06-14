@@ -37,6 +37,62 @@ const groupsService = {
       entityId: group.id,
       metadata: { name, description, baseCurrency },
     });
+    return group;
+  },
+
+  /**
+   * Create a Mock Test Group using data from Expenses Export.csv.
+   */
+  async createMockTestGroup(userId) {
+    const bcrypt = require('bcryptjs');
+
+    // Parse the known unique names from the specific CSV provided by the user
+    // The names are: Aisha, Rohan, Priya, Meera, Dev
+    const mockNames = ['Aisha', 'Rohan', 'Priya', 'Meera', 'Dev'];
+
+    // Create the group
+    const group = await prisma.$transaction(async (tx) => {
+      const newGroup = await tx.group.create({
+        data: {
+          name: 'Mock Test Group (INR)',
+          description: 'DISCLAIMER: These users and this group are only for testing purpose according to given data.',
+          baseCurrency: 'INR',
+          createdById: userId,
+        },
+      });
+
+      // Add current user
+      await tx.groupMembership.create({
+        data: { groupId: newGroup.id, userId, status: MEMBERSHIP_STATUS.ACTIVE },
+      });
+
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash('password123', salt);
+
+      // Add mock users
+      for (const name of mockNames) {
+        const email = `${name.toLowerCase()}@mock.test`;
+        let user = await tx.user.findUnique({ where: { email } });
+        if (!user) {
+          user = await tx.user.create({
+            data: { email, name, passwordHash, preferredCurrency: 'INR' },
+          });
+        }
+        await tx.groupMembership.create({
+          data: { groupId: newGroup.id, userId: user.id, status: MEMBERSHIP_STATUS.ACTIVE },
+        });
+      }
+
+      return newGroup;
+    });
+
+    await logActivity(prisma, {
+      userId,
+      action: ACTIVITY_ACTIONS.GROUP_CREATED,
+      entityType: ENTITY_TYPES.GROUP,
+      entityId: group.id,
+      metadata: { name: group.name, isMock: true },
+    });
 
     return group;
   },

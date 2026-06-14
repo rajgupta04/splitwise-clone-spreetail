@@ -11,7 +11,7 @@ import {
 import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateCurrency } = useAuth();
   const navigate = useNavigate();
   const [groups, setGroups] = useState([]);
   const [balanceSummary, setBalanceSummary] = useState(null);
@@ -64,6 +64,24 @@ export default function DashboardPage() {
           <h1 className="text-xl font-bold gradient-text">Splitwise</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-[var(--color-text-muted)]">{user?.name}</span>
+            <select
+              className="input py-1 px-2 text-xs border-[var(--color-border)]"
+              style={{ minHeight: 'auto', background: 'var(--color-bg-card)' }}
+              value={user?.preferredCurrency || 'INR'}
+              onChange={async (e) => {
+                try {
+                  await updateCurrency(e.target.value);
+                  toast.success('Preferred currency updated');
+                  loadData(); // Reload balances
+                } catch (err) {
+                  toast.error('Failed to update currency');
+                }
+              }}
+            >
+              {CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>{c.code}</option>
+              ))}
+            </select>
             <button onClick={logout} className="btn-secondary text-xs py-2 px-3">
               <LogOut size={14} /> Logout
             </button>

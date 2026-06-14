@@ -55,8 +55,20 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token');
   };
 
+  const updateCurrency = async (currency) => {
+    try {
+      const res = await authApi.updateCurrency(currency);
+      const updatedUser = res.data.data.user;
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      return updatedUser;
+    } catch (err) {
+      throw err;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateCurrency }}>
       {children}
     </AuthContext.Provider>
   );

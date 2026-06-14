@@ -4,6 +4,7 @@ export const authApi = {
   register: (data) => client.post('/auth/register', data),
   login: (data) => client.post('/auth/login', data),
   getProfile: () => client.get('/auth/me'),
+  updateCurrency: (currency) => client.put('/auth/me/currency', { currency }),
 };
 
 export const groupsApi = {
@@ -12,6 +13,7 @@ export const groupsApi = {
   getById: (id) => client.get(`/groups/${id}`),
   update: (id, data) => client.put(`/groups/${id}`, data),
   archive: (id) => client.delete(`/groups/${id}`),
+  createMock: () => client.post('/groups/mock'),
 };
 
 export const membershipsApi = {
@@ -53,6 +55,9 @@ export const importsApi = {
   getItems: (id, params) => client.get(`/imports/${id}/items`, { params }),
   decideItem: (importId, itemId, data) =>
     client.post(`/imports/${importId}/items/${itemId}/decide`, data),
+  resolveItem: (importId, itemId, data) =>
+    client.patch(`/imports/${importId}/items/${itemId}/resolve`, data),
+  executeImport: (id) => client.post(`/imports/${id}/execute`),
   finalize: (id) => client.post(`/imports/${id}/finalize`),
   getReport: (id) => client.get(`/imports/${id}/report`),
   getDecisions: (id) => client.get(`/imports/${id}/decisions`),

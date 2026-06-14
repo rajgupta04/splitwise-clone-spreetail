@@ -87,6 +87,29 @@ const importsRepository = {
     });
   },
 
+  async resolveItem(id, { resolutionType, resolutionData, resolvedById, importStatus }) {
+    return prisma.importItem.update({
+      where: { id },
+      data: {
+        resolutionType,
+        resolutionData,
+        resolvedById,
+        resolvedAt: new Date(),
+        importStatus,
+      },
+      include: {
+        anomalyFlags: true,
+      },
+    });
+  },
+
+  async updateImportStatus(id, importStatus) {
+    return prisma.importItem.update({
+      where: { id },
+      data: { importStatus },
+    });
+  },
+
   async createAnomalyFlag(data) {
     return prisma.anomalyFlag.create({ data });
   },
@@ -106,6 +129,17 @@ const importsRepository = {
         importItem: { select: { id: true, rowNumber: true, status: true } },
       },
       orderBy: { decidedAt: 'desc' },
+    });
+  },
+
+  async createImportReport(data) {
+    return prisma.importReport.create({ data });
+  },
+
+  async findReportsByImportId(importId) {
+    return prisma.importReport.findMany({
+      where: { importId },
+      orderBy: { rowNumber: 'asc' },
     });
   },
 };

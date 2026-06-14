@@ -23,13 +23,33 @@ const decideItemSchema = {
   }),
 };
 
+const resolveItemSchema = {
+  params: z.object({
+    importId: z.string().uuid('Invalid import ID'),
+    itemId: z.string().uuid('Invalid item ID'),
+  }),
+  body: z.object({
+    resolutionType: z.string().min(1, 'resolutionType is required'),
+    resolutionData: z.record(z.any()).optional().default({}),
+  }),
+};
+
+const executeImportSchema = {
+  params: z.object({
+    importId: z.string().uuid('Invalid import ID'),
+  }),
+};
+
 const listItemsSchema = {
   params: z.object({
     importId: z.string().uuid('Invalid import ID'),
   }),
   query: z.object({
-    status: z.enum(['pending', 'clean', 'flagged', 'approved', 'rejected', 'error']).optional(),
+    status: z.enum(['pending', 'clean', 'flagged', 'approved', 'rejected', 'error', 'resolved', 'skipped']).optional(),
   }),
 };
 
-module.exports = { groupIdParamSchema, importIdParamSchema, decideItemSchema, listItemsSchema };
+module.exports = {
+  groupIdParamSchema, importIdParamSchema, decideItemSchema,
+  resolveItemSchema, executeImportSchema, listItemsSchema,
+};

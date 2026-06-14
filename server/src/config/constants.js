@@ -34,6 +34,8 @@ module.exports = {
     ERROR: 'error',
     IMPORTED: 'imported',
     FAILED: 'failed',
+    RESOLVED: 'resolved',
+    SKIPPED: 'skipped',
   },
 
   // Anomaly types
@@ -55,6 +57,7 @@ module.exports = {
     CONFLICTING_SPLIT_DATA: 'conflicting_split_data',
     ROUNDING_ISSUE: 'rounding_issue',
     MISSING_CURRENCY: 'missing_currency',
+    CURRENCY_FOREIGN: 'currency_foreign',
     FINALIZATION_ERROR: 'finalization_error',
   },
 
@@ -91,7 +94,9 @@ module.exports = {
     IMPORT_UPLOADED: 'import_uploaded',
     IMPORT_ITEM_APPROVED: 'import_item_approved',
     IMPORT_ITEM_REJECTED: 'import_item_rejected',
+    IMPORT_ITEM_RESOLVED: 'import_item_resolved',
     IMPORT_FINALIZED: 'import_finalized',
+    IMPORT_EXECUTED: 'import_executed',
   },
 
   // Entity types for activity logs

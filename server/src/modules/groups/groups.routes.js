@@ -10,6 +10,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.post('/', validate(createGroupSchema), groupsController.create);
+router.post('/mock', groupsController.createMockGroup);
 router.get('/', groupsController.list);
 router.get('/:groupId', validate(groupIdParamSchema), groupsController.getById);
 router.put('/:groupId', validate(updateGroupSchema), groupsController.update);

@@ -84,6 +84,28 @@ const authService = {
   },
 
   /**
+   * Update preferred currency.
+   * @param {string} userId
+   * @param {string} currency
+   * @returns {Promise<object>}
+   */
+  async updateCurrency(userId, currency) {
+    const prisma = require('../../config/database');
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { preferredCurrency: currency },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        preferredCurrency: true,
+        createdAt: true,
+      },
+    });
+    return updatedUser;
+  },
+
+  /**
    * Generate a JWT token for a user.
    * @param {object} user - { id, email, name }
    * @returns {string}

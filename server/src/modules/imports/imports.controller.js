@@ -69,6 +69,32 @@ const importsController = {
     }
   },
 
+  async resolveItem(req, res, next) {
+    try {
+      const item = await importsService.resolveItem(
+        req.params.importId,
+        req.params.itemId,
+        req.user.id,
+        req.body
+      );
+      return ApiResponse.success(res, { item }, 'Anomaly resolved');
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async executeImport(req, res, next) {
+    try {
+      const result = await importsService.executeImport(
+        req.params.importId,
+        req.user.id
+      );
+      return ApiResponse.success(res, { result }, 'Import executed');
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async finalize(req, res, next) {
     try {
       const result = await importsService.finalizeImport(

@@ -140,3 +140,11 @@ Tracks key architectural and technical design decisions, alternatives considered
   * *Strict Terminal States*: Requires adding additional status flags and handling rollback states outside of transactions.
 * **Final Choice**: Strict Terminal States.
 * **Reasoning**: A silent failure in financial software is unacceptable. Every uploaded row must have an explicit outcome. Transitioning items to terminal states (`imported`, `rejected`, `failed`) ensures 100% accountability in the Import Report.
+
+
+## Recent Updates (CSV Import & Personal Currency)
+- **Global Personal Currency**: Added preferredCurrency to user profile, updating the Dashboard to reflect balances converted to the user's local currency using real-time mock exchange rates.
+- **Mock Test Group**: Integrated a one-click Mock Test Group (INR) generator on the Import page that reads the provided sample CSV and auto-creates identical users (Aisha, Rohan, Priya, Meera, Dev) for testing.
+- **Interactive Anomaly Resolution**: Upgraded the ResolutionModal to display full raw data context (Description, Amount, Paid By) for each anomaly, streamlining user decisions.
+- **CSV Execution Handler**: Finalized the execution loop that commits resolved ImportItem records to the main Expense and Settlement tables.
+
