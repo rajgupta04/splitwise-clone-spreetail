@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserPlus, Mail, Lock, User, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import MoneyPipeline from '../components/MoneyPipeline';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -27,30 +28,32 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Column - Graphic/Branding */}
-      <div className="hidden lg:flex w-1/2 bg-[var(--color-primary)] flex-col justify-center items-center p-12 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
-          backgroundSize: '32px 32px'
-        }}></div>
-        <div className="relative z-10 text-center">
-          <div className="bg-white/20 p-6 rounded-3xl inline-block mb-8 backdrop-blur-md">
-            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="6" width="20" height="12" rx="2"></rect>
-              <circle cx="12" cy="12" r="2"></circle>
-              <path d="M6 12h.01M18 12h.01"></path>
-            </svg>
-          </div>
-          <h1 className="text-5xl font-bold mb-4">Splitwise</h1>
-          <p className="text-xl text-green-50/90 max-w-md mx-auto leading-relaxed">
-            The easiest way to share expenses across trips, apartments, and friend groups.
-          </p>
+    <div className="min-h-screen flex relative bg-[#0f172a]">
+      {/* Full screen static grid background */}
+      <div className="absolute inset-0 pointer-events-none opacity-80">
+        <svg width="100%" height="100%">
+          <pattern id="full-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.5" fill="#334155" />
+          </pattern>
+          <rect width="100%" height="100%" fill="url(#full-grid)" />
+        </svg>
+      </div>
+
+      {/* Left 55% - Animated Pipeline */}
+      <div className="hidden lg:block absolute left-0 top-0 h-full w-[55%] z-0">
+        <MoneyPipeline />
+      </div>
+
+      {/* Left 55% - Text overlay */}
+      <div className="hidden lg:flex w-[55%] relative z-10 p-12 text-white pointer-events-none">
+        <div className="absolute bottom-12 left-12 opacity-90">
+          <h2 className="text-2xl font-bold tracking-widest text-[#10b981] uppercase">Splitwise</h2>
+          <p className="text-xs font-mono mt-1 text-[#94a3b8]">A CLONING PROJECT BY SPREETAILXRAJ</p>
         </div>
       </div>
 
-      {/* Right Column - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-[var(--color-bg)]">
+      {/* Right 45% - Form */}
+      <div className="w-full lg:w-[45%] flex items-center justify-center p-8 relative z-10 border-l border-white/5">
         <div className="w-full max-w-md animate-fadeIn">
           
           <div className="text-center mb-10 lg:hidden">

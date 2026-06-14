@@ -72,42 +72,42 @@ export default function MoneyPipeline() {
         
         {/* Source Node (Expense Payer) */}
         <g transform="translate(90, 460)" filter="url(#nodeShadow)">
-          <rect width="120" height="80" rx="12" fill="#1e293b" stroke="#334155" strokeWidth="2" />
-          <circle cx="60" cy="30" r="16" fill="#3b82f6" opacity="0.2" />
-          <text x="60" y="34" fontSize="18" fill="#60a5fa" textAnchor="middle">👤</text>
-          <text x="60" y="60" fontSize="12" fill="#94a3b8" fontWeight="bold" textAnchor="middle">Payer</text>
+          <rect width="120" height="80" rx="12" fill="#1e293b" stroke="#3b82f6" strokeWidth="2" />
+          <circle cx="60" cy="30" r="16" fill="#3b82f6" opacity="0.4" />
+          <text x="60" y="35" fontSize="18" fill="#ffffff" textAnchor="middle">👤</text>
+          <text x="60" y="62" fontSize="14" fill="#ffffff" fontWeight="bold" textAnchor="middle">Payer</text>
         </g>
 
         {/* Central Node (Splitwise Group) */}
         <g transform="translate(420, 440)" filter="url(#nodeShadow)">
-          <rect width="160" height="120" rx="16" fill="#1e293b" stroke="#4f46e5" strokeWidth="3" />
-          <circle cx="80" cy="45" r="24" fill="#4f46e5" opacity="0.2" />
-          <text x="80" y="52" fontSize="26" fill="#818cf8" textAnchor="middle">👥</text>
-          <text x="80" y="90" fontSize="14" fill="#f1f5f9" fontWeight="bold" textAnchor="middle">Trip Group</text>
+          <rect width="160" height="120" rx="16" fill="#1e293b" stroke="#818cf8" strokeWidth="3" />
+          <circle cx="80" cy="45" r="24" fill="#6366f1" opacity="0.4" />
+          <text x="80" y="53" fontSize="26" fill="#ffffff" textAnchor="middle">👥</text>
+          <text x="80" y="92" fontSize="16" fill="#ffffff" fontWeight="bold" textAnchor="middle">Trip Group</text>
         </g>
 
         {/* Target Node 1 (Split Member) */}
         <g transform="translate(850, 260)" filter="url(#nodeShadow)">
           <rect width="100" height="80" rx="12" fill="#1e293b" stroke="#10b981" strokeWidth="2" />
-          <circle cx="50" cy="30" r="14" fill="#10b981" opacity="0.2" />
-          <text x="50" y="34" fontSize="16" fill="#34d399" textAnchor="middle">👤</text>
-          <text x="50" y="60" fontSize="12" fill="#94a3b8" fontWeight="bold" textAnchor="middle">Split 1</text>
+          <circle cx="50" cy="30" r="14" fill="#10b981" opacity="0.4" />
+          <text x="50" y="35" fontSize="16" fill="#ffffff" textAnchor="middle">👤</text>
+          <text x="50" y="62" fontSize="14" fill="#ffffff" fontWeight="bold" textAnchor="middle">Split 1</text>
         </g>
 
         {/* Target Node 2 (Split Member) */}
         <g transform="translate(850, 460)" filter="url(#nodeShadow)">
           <rect width="100" height="80" rx="12" fill="#1e293b" stroke="#10b981" strokeWidth="2" />
-          <circle cx="50" cy="30" r="14" fill="#10b981" opacity="0.2" />
-          <text x="50" y="34" fontSize="16" fill="#34d399" textAnchor="middle">👤</text>
-          <text x="50" y="60" fontSize="12" fill="#94a3b8" fontWeight="bold" textAnchor="middle">Split 2</text>
+          <circle cx="50" cy="30" r="14" fill="#10b981" opacity="0.4" />
+          <text x="50" y="35" fontSize="16" fill="#ffffff" textAnchor="middle">👤</text>
+          <text x="50" y="62" fontSize="14" fill="#ffffff" fontWeight="bold" textAnchor="middle">Split 2</text>
         </g>
 
         {/* Target Node 3 (Split Member) */}
         <g transform="translate(850, 660)" filter="url(#nodeShadow)">
           <rect width="100" height="80" rx="12" fill="#1e293b" stroke="#10b981" strokeWidth="2" />
-          <circle cx="50" cy="30" r="14" fill="#10b981" opacity="0.2" />
-          <text x="50" y="34" fontSize="16" fill="#34d399" textAnchor="middle">👤</text>
-          <text x="50" y="60" fontSize="12" fill="#94a3b8" fontWeight="bold" textAnchor="middle">Split 3</text>
+          <circle cx="50" cy="30" r="14" fill="#10b981" opacity="0.4" />
+          <text x="50" y="35" fontSize="16" fill="#ffffff" textAnchor="middle">👤</text>
+          <text x="50" y="62" fontSize="14" fill="#ffffff" fontWeight="bold" textAnchor="middle">Split 3</text>
         </g>
 
       </svg>
