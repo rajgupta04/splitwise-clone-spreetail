@@ -188,6 +188,14 @@ export default function ResolutionModal({
         resolutionData.absoluteValue = anomalyMeta.absoluteValue;
         break;
 
+      case 'format_error':
+        if (selectedOption === 'custom') {
+          resolutionData.correctedAmount = parseFloat(inputValues.custom);
+        } else if (selectedOption === 'accept') {
+          resolutionData.cleanedValue = anomalyMeta.cleanedValue;
+        }
+        break;
+
       case 'conflicting_split_data':
         // No extra data needed
         break;
@@ -369,7 +377,8 @@ export default function ResolutionModal({
     // Number inputs
     if ((type === 'rounding_issue' && selectedOption === 'custom') ||
         (type === 'zero_amount' && selectedOption === 'manual') ||
-        (type === 'currency_foreign' && selectedOption === 'manual_rate')) {
+        (type === 'currency_foreign' && selectedOption === 'manual_rate') ||
+        (type === 'format_error' && selectedOption === 'custom')) {
       const key = selectedOption === 'custom' ? 'custom' : selectedOption;
       const label = type === 'currency_foreign' ? 'Exchange Rate' : 'Amount';
       return (

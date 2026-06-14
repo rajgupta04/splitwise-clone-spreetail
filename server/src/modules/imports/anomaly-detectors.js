@@ -164,17 +164,21 @@ function parseAmount(amountStr) {
 
   // Strip commas (thousands separator)
   if (cleaned.includes(',')) {
+    const stripped = cleaned.replace(/,/g, '');
     anomalies.push({
       type: ANOMALY_TYPES.FORMAT_ERROR,
       severity: ANOMALY_SEVERITY.INFO,
-      details: `Amount "${cleaned}" contains comma formatting. Stripped to "${cleaned.replace(/,/g, '')}".`,
+      details: `Amount "${cleaned}" contains comma formatting. Stripped to "${stripped}".`,
       field: 'amount',
       rawValue: cleaned,
-      meta: { cleanedValue: cleaned.replace(/,/g, '') },
-      resolutionOptions: [],
-      defaultResolution: null,
+      meta: { cleanedValue: stripped },
+      resolutionOptions: [
+        { id: 'accept', label: `Accept as ${stripped}` },
+        { id: 'custom', label: 'Enter custom amount', requiresInput: true },
+      ],
+      defaultResolution: 'accept',
     });
-    cleaned = cleaned.replace(/,/g, '');
+    cleaned = stripped;
   }
 
   const num = parseFloat(cleaned);
@@ -214,19 +218,24 @@ function parseAmount(amountStr) {
 
   // Check negative
   if (num < 0) {
+    const desc = (row.description || '').toLowerCase();
+    const isRefundLabeled = desc.includes('refund') || desc.includes('return') || desc.includes('credit') || desc.includes('cashback') || desc.includes('reimburse');
+
     anomalies.push({
       type: ANOMALY_TYPES.NEGATIVE_AMOUNT,
-      severity: ANOMALY_SEVERITY.INFO,
-      details: `Amount is negative (${num}). Treated as a refund/credit.`,
+      severity: isRefundLabeled ? ANOMALY_SEVERITY.INFO : ANOMALY_SEVERITY.WARNING,
+      details: isRefundLabeled
+        ? `Amount is negative (${num}). Treated as a refund/credit based on description.`
+        : `Amount is negative (${num}) but description does not indicate a refund. Was this a refund?`,
       field: 'amount',
       rawValue: cleaned,
-      meta: { absoluteValue: Math.abs(num) },
+      meta: { absoluteValue: Math.abs(num), isRefundLabeled },
       resolutionOptions: [
-        { id: 'as_refund', label: 'Import as refund (credit)' },
+        { id: 'as_refund', label: 'Import as refund (credit payer)' },
         { id: 'as_positive', label: 'Flip to positive expense' },
         { id: 'skip', label: 'Skip this row' },
       ],
-      defaultResolution: 'as_refund',
+      defaultResolution: isRefundLabeled ? 'as_refund' : 'skip',
     });
   }
 

@@ -9,6 +9,12 @@ export function AuthProvider({ children }) {
     return saved ? JSON.parse(saved) : null;
   });
   const [token, setToken] = useState(() => localStorage.getItem('token'));
+  
+  const [demoAccounts, setDemoAccounts] = useState(() => {
+    const saved = localStorage.getItem('demoAccounts');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,12 +46,31 @@ export function AuthProvider({ children }) {
 
   const demoLogin = async () => {
     const res = await authApi.demoLogin();
-    const { user: userData, token: newToken } = res.data.data;
-    setUser(userData);
-    setToken(newToken);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', newToken);
-    return userData;
+    const { accounts } = res.data.data; // Now returns an array of { user, token }
+    
+    if (accounts && accounts.length > 0) {
+      setDemoAccounts(accounts);
+      localStorage.setItem('demoAccounts', JSON.stringify(accounts));
+
+      const { user: userData, token: newToken } = accounts[0];
+      setUser(userData);
+      setToken(newToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', newToken);
+      return userData;
+    }
+    throw new Error('No accounts returned from demo login');
+  };
+
+  const switchAccount = (userId) => {
+    if (!demoAccounts) return;
+    const account = demoAccounts.find((acc) => acc.user.id === userId);
+    if (account) {
+      setUser(account.user);
+      setToken(account.token);
+      localStorage.setItem('user', JSON.stringify(account.user));
+      localStorage.setItem('token', account.token);
+    }
   };
 
   const register = async (name, email, password) => {
@@ -61,8 +86,10 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     setToken(null);
+    setDemoAccounts(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    localStorage.removeItem('demoAccounts');
   };
 
   const updateCurrency = async (currency) => {
@@ -78,7 +105,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, demoLogin, register, logout, updateCurrency }}>
+    <AuthContext.Provider value={{ user, token, loading, login, demoLogin, register, logout, updateCurrency, demoAccounts, switchAccount }}>
       {children}
     </AuthContext.Provider>
   );

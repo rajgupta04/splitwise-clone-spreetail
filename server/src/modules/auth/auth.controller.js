@@ -34,8 +34,8 @@ const authController = {
    */
   async demoLogin(req, res, next) {
     try {
-      const { user, token } = await authService.demoLogin();
-      return ApiResponse.success(res, { user, token }, 'Demo login successful');
+      const { accounts } = await authService.demoLogin();
+      return ApiResponse.success(res, { accounts }, 'Demo login successful');
     } catch (error) {
       return next(error);
     }

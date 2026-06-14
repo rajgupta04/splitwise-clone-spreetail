@@ -26,7 +26,7 @@ function validate(schema) {
       return next();
     } catch (error) {
       if (error.name === 'ZodError') {
-        const errors = error.errors.map((e) => ({
+        const errors = error.issues.map((e) => ({
           field: e.path.join('.'),
           message: e.message,
         }));

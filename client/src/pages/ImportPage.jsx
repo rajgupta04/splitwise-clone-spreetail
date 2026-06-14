@@ -150,7 +150,12 @@ export default function ImportPage() {
     const queue = [];
     for (const item of items) {
       if (item.importStatus === 'pending' && item.anomalyFlags?.length > 0) {
-        queue.push({ item, anomaly: item.anomalyFlags[0] });
+        for (const anomaly of item.anomalyFlags) {
+          const isResolved = item.resolutionType === 'compound' && item.resolutionData?.resolutions?.[anomaly.id];
+          if (!isResolved) {
+            queue.push({ item, anomaly });
+          }
+        }
       }
     }
     if (queue.length > 0) {
@@ -185,16 +190,17 @@ export default function ImportPage() {
   };
 
   const handleResolve = async (resolutionType, resolutionData) => {
-    if (!selectedImport || !resolvingItem) return;
+    if (!selectedImport || !resolvingItem || !resolvingAnomaly) return;
     setIsResolving(true);
     try {
       await importsApi.resolveItem(selectedImport.id, resolvingItem.id, {
         resolutionType,
         resolutionData,
+        anomalyId: resolvingAnomaly.id,
       });
       toast.success('Anomaly resolved');
       await loadItems(selectedImport.id);
-      
+
       if (quickResolveQueue.length > 0) {
         handleQuickResolveNext();
       } else {
@@ -604,9 +610,8 @@ function ImportItemCard({ item, onResolve, importStatus }) {
   // Find the primary anomaly to resolve (first unresolved one with resolution options)
   const resolvableAnomalies = (item.anomalyFlags || []).filter(
     (a) => {
-      // Re-parse from detectors to get resolutionOptions
-      // Since anomalyFlags from DB don't have resolutionOptions, we build them
-      return true;
+      const isResolved = item.resolutionType === 'compound' && item.resolutionData?.resolutions?.[a.id];
+      return !isResolved;
     }
   );
 
@@ -635,12 +640,12 @@ function ImportItemCard({ item, onResolve, importStatus }) {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {hasAnomalies && (
+          {hasAnomalies && resolvableAnomalies.length > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full" style={{
               background: hasErrors ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
               color: hasErrors ? '#ef4444' : '#f59e0b',
             }}>
-              {item.anomalyFlags.length} {item.anomalyFlags.length === 1 ? 'issue' : 'issues'}
+              {resolvableAnomalies.length} {resolvableAnomalies.length === 1 ? 'issue' : 'issues'}
             </span>
           )}
           <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
@@ -677,7 +682,7 @@ function ImportItemCard({ item, onResolve, importStatus }) {
           )}
 
           {/* Resolution info (if already resolved) */}
-          {isResolved && item.resolutionType && (
+          {isResolved && item.resolutionType && item.resolutionType !== 'compound' && (
             <div className="mb-3 p-2 rounded-lg" style={{ background: 'rgba(16,185,129,0.1)' }}>
               <p className="text-xs font-semibold text-green-400 mb-1">
                 <Shield size={12} className="inline mr-1" />
@@ -700,18 +705,29 @@ function ImportItemCard({ item, onResolve, importStatus }) {
                 {item.anomalyFlags.map((a, i) => {
                   const cfg = SEVERITY_CONFIG[a.severity] || SEVERITY_CONFIG.info;
                   const Icon = cfg.icon;
+                  const isThisAnomalyResolved = item.resolutionType === 'compound' && item.resolutionData?.resolutions?.[a.id];
+                  const subRes = isThisAnomalyResolved ? item.resolutionData.resolutions[a.id] : null;
+
                   return (
                     <div
                       key={i}
                       className="flex items-start gap-2 p-2 rounded-lg text-xs"
-                      style={{ background: cfg.bg, color: cfg.color }}
+                      style={{
+                        background: isThisAnomalyResolved ? 'rgba(16,185,129,0.1)' : cfg.bg,
+                        color: isThisAnomalyResolved ? '#10b981' : cfg.color
+                      }}
                     >
-                      <Icon size={14} className="mt-0.5 flex-shrink-0" />
+                      {isThisAnomalyResolved ? <Check size={14} className="mt-0.5 flex-shrink-0" /> : <Icon size={14} className="mt-0.5 flex-shrink-0" />}
                       <div className="flex-1">
                         <span className="font-medium">[{a.anomalyType}]</span>{' '}
                         <span>{a.details}</span>
+                        {isThisAnomalyResolved && (
+                          <div className="mt-1 text-[10px] font-medium opacity-80">
+                            Applied: {subRes.type.replace(/_/g, ' ')}
+                          </div>
+                        )}
                       </div>
-                      {isReviewable && !isResolved && (
+                      {isReviewable && !isThisAnomalyResolved && !isResolved && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -731,18 +747,17 @@ function ImportItemCard({ item, onResolve, importStatus }) {
           )}
 
           {/* Resolve All button for items with multiple anomalies */}
-          {isReviewable && !isResolved && hasAnomalies && item.anomalyFlags.length >= 1 && (
+          {isReviewable && !isResolved && hasAnomalies && resolvableAnomalies.length >= 1 && (
             <div className="flex gap-2 pt-2">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Open resolution for first anomaly
-                  onResolve(item, item.anomalyFlags[0]);
+                  onResolve(item, resolvableAnomalies[0]);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition hover:opacity-90"
                 style={{ background: 'var(--color-primary)', color: '#fff' }}
               >
-                <Zap size={14} /> Resolve
+                <Zap size={14} /> Resolve Next Issue
               </button>
             </div>
           )}

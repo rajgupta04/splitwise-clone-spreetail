@@ -81,27 +81,46 @@ const authService = {
       user = await authRepository.create({ email, name: 'Demo User', passwordHash });
     }
 
-    // Setup Mock Group and Import
-    const groupsService = require('../groups/groups.service');
-    const importsService = require('../imports/imports.service');
-    const path = require('path');
-    const fs = require('fs');
+    const prisma = require('../../config/database');
 
-    // Create mock group
-    const group = await groupsService.createMockTestGroup(user.id);
+    // Check if mock group already exists
+    const existingGroup = await prisma.group.findFirst({
+      where: { name: 'Mock Test Group (INR)', createdById: user.id }
+    });
 
-    // Auto-load CSV anomalies
-    const csvPath = path.resolve(__dirname, '../../../../Expenses Export.csv');
-    if (fs.existsSync(csvPath)) {
-      const file = {
-        path: csvPath,
-        originalname: 'Expenses Export.csv',
-      };
-      await importsService.uploadCsv(group.id, user.id, file);
+    if (!existingGroup) {
+      // Setup Mock Group and Import
+      const groupsService = require('../groups/groups.service');
+      const importsService = require('../imports/imports.service');
+      const path = require('path');
+      const fs = require('fs');
+
+      // Create mock group
+      const group = await groupsService.createMockTestGroup(user.id);
+
+      // Auto-load CSV anomalies
+      const csvPath = path.resolve(__dirname, '../../../../Expenses Export.csv');
+      if (fs.existsSync(csvPath)) {
+        const file = {
+          path: csvPath,
+          originalname: 'Expenses Export.csv',
+        };
+        await importsService.uploadCsv(group.id, user.id, file);
+      }
     }
 
-    const token = this._generateToken(user);
-    return { user, token };
+    // Fetch all the mock users that were just created in the group
+    const mockEmails = ['aisha@mock.test', 'rohan@mock.test', 'priya@mock.test', 'meera@mock.test', 'dev@mock.test'];
+    const mockUsers = await prisma.user.findMany({
+      where: { email: { in: mockEmails } }
+    });
+
+    const accounts = [
+      { user, token: this._generateToken(user) },
+      ...mockUsers.map(mu => ({ user: mu, token: this._generateToken(mu) }))
+    ];
+
+    return { accounts };
   },
 
   /**

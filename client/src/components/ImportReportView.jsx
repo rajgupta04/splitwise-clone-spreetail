@@ -13,22 +13,93 @@ const STATUS_COLORS = {
 export default function ImportReportView({ report, importData }) {
   const rows = report || [];
 
-  const handleExportCSV = () => {
-    const headers = ['Row', 'Description', 'Anomaly', 'Your Decision', 'Original Value', 'Imported As'];
-    const csvRows = rows.map((r) => {
-      const rawData = r.originalValue || {};
-      const desc = rawData.description || '—';
-      const anomaly = r.detectedIssue || '—';
-      const decision = r.userDecision || '—';
-      const originalVal = rawData.amount ? `${rawData.currency || ''} ${rawData.amount}` : '—';
-      const finalVal = r.finalValue?.status || '—';
-      const importedAs = r.finalValue?.type
-        ? `${r.finalValue.status} (${r.finalValue.type})`
-        : r.finalValue?.reason
-          ? `${r.finalValue.status} — ${r.finalValue.reason}`
-          : finalVal;
+  // Group rows by Detected Issue and Action Taken
+  const groupedMap = new Map();
+  rows.forEach((r) => {
+    const issue = r.detectedIssue || 'None';
+    const decision = r.userDecision || 'None';
+    const key = `${issue}|${decision}`;
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, { ...r, allRowNumbers: [r.rowNumber] });
+    } else {
+      groupedMap.get(key).allRowNumbers.push(r.rowNumber);
+    }
+  });
+  const groupedRows = Array.from(groupedMap.values()).sort((a, b) => a.allRowNumbers[0] - b.allRowNumbers[0]);
 
-      return [r.rowNumber, desc, anomaly, decision, originalVal, importedAs]
+  const handleExportCSV = () => {
+    const headers = ['Row', 'Original Value', 'Detected Issue', 'Action Taken', 'Final Value'];
+    const csvRows = groupedRows.map((r) => {
+      const rawData = r.originalValue || {};
+      const originalVal = rawData.amount ? `${rawData.currency || ''} ${rawData.amount}` : '—';
+      const originalValDisplay = r.allRowNumbers.length > 1 ? `${originalVal} (+${r.allRowNumbers.length - 1} more)` : originalVal;
+      
+      const anomaly = r.detectedIssue || '—';
+      const decisionParts = (r.userDecision || '').split(':');
+      const resType = decisionParts[0]?.toLowerCase().trim();
+      let resData = {};
+      try {
+        if (decisionParts.length > 1) {
+          resData = JSON.parse(decisionParts.slice(1).join(':').trim());
+        }
+      } catch (e) {}
+
+      let actionTaken = resType;
+      if (resType === 'interpretation_a') {
+        actionTaken = resData.confirmedDate 
+          ? `Used 1st Interpretation: ${resData.confirmedDate}` 
+          : 'Used 1st Interpretation (DD/MM)';
+      } else if (resType === 'interpretation_b') {
+        actionTaken = resData.confirmedDate 
+          ? `Used 2nd Interpretation: ${resData.confirmedDate}` 
+          : 'Used 2nd Interpretation (MM/DD)';
+      } else if (resType === 'confirm') {
+        actionTaken = resData.confirmedDate 
+          ? `Confirmed Date: ${resData.confirmedDate}` 
+          : 'Confirmed Date';
+      } else if (resType === 'accept_rounded') {
+        actionTaken = resData.suggested 
+          ? `Accepted Rounded Amount: ${resData.suggested}` 
+          : 'Accepted Rounded Amount';
+      } else if (resType === 'accept') {
+        if (resData.cleanedValue) actionTaken = `Accepted Cleaned Value: ${resData.cleanedValue}`;
+        else if (resData.selectedUserId) actionTaken = `Accepted Match`;
+        else actionTaken = 'Accepted As Is';
+      } else if (resType === 'reject') {
+        actionTaken = 'Rejected (Skipped)';
+      } else if (resType === 'assign') {
+        actionTaken = resData.participantName 
+          ? `Assigned to ${resData.participantName}` 
+          : 'Assigned to Participant';
+      } else if (resType === 'custom') {
+        if (resData.customPayer) actionTaken = `Assigned Payer: ${resData.customPayer}`;
+        else if (resData.useAs) actionTaken = `Used custom value: ${resData.useAs}`;
+        else if (resData.correctedAmount) actionTaken = `Entered Custom Amount: ${resData.correctedAmount}`;
+        else if (resData.confirmedDate) actionTaken = `Entered Custom Date: ${resData.confirmedDate}`;
+        else actionTaken = 'Used Custom Value';
+      } else if (resType === 'map') {
+        actionTaken = 'Mapped to Existing User';
+      } else if (resType === 'create') {
+        actionTaken = resData.newMemberName 
+          ? `Created New User: ${resData.newMemberName}` 
+          : 'Created New User';
+      } else if (resType === 'keep_first') {
+        actionTaken = `Kept Row ${resData.keepRowNumber || 'First'}`;
+      } else if (resType === 'keep_second') {
+        actionTaken = `Kept Row ${resData.keepRowNumber || 'Second'}`;
+      } else if (resType === 'auto-resolved (clean)') {
+        actionTaken = 'Auto-Resolved (Clean)';
+      } else if (resType === 'pending') {
+        actionTaken = 'Pending Resolution';
+      } else if (resType) {
+        actionTaken = resType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      } else {
+        actionTaken = '—';
+      }
+
+      const finalVal = r.finalValue?.status || '—';
+
+      return [r.allRowNumbers.join(', '), originalValDisplay, anomaly, actionTaken, finalVal]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(',');
     });
@@ -84,42 +155,106 @@ export default function ImportReportView({ report, importData }) {
             <thead>
               <tr className="border-b border-[#334155]">
                 <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Row</th>
-                <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Description</th>
-                <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Anomaly</th>
-                <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Your Decision</th>
                 <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Original Value</th>
-                <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Imported As</th>
+                <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Detected Issue</th>
+                <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Action Taken</th>
+                <th className="text-left p-3 text-xs font-semibold text-[var(--color-text-muted)]">Final Value</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, idx) => {
+              {groupedRows.map((r, idx) => {
                 const rawData = r.originalValue || {};
+                const originalVal = rawData.amount ? `${rawData.currency || ''} ${rawData.amount}` : '—';
+                const originalValDisplay = r.allRowNumbers.length > 1 ? `${originalVal} (+${r.allRowNumbers.length - 1} more)` : originalVal;
+
                 const statusColor = STATUS_COLORS[r.finalValue?.status] || '#94a3b8';
                 const importedAs = r.finalValue?.type
                   ? `${r.finalValue.type}`
                   : r.finalValue?.reason || r.finalValue?.status || '—';
 
-                // Parse the user decision to show just the resolution type nicely
                 const decisionParts = (r.userDecision || '').split(':');
-                const decisionLabel = decisionParts[0]?.replace(/_/g, ' ') || '—';
+                const resType = decisionParts[0]?.toLowerCase().trim();
+                let resData = {};
+                try {
+                  if (decisionParts.length > 1) {
+                    resData = JSON.parse(decisionParts.slice(1).join(':').trim());
+                  }
+                } catch (e) {}
+
+                let actionTaken = resType;
+                if (resType === 'interpretation_a') {
+                  actionTaken = resData.confirmedDate 
+                    ? `Used 1st Interpretation: ${resData.confirmedDate}` 
+                    : 'Used 1st Interpretation (DD/MM)';
+                } else if (resType === 'interpretation_b') {
+                  actionTaken = resData.confirmedDate 
+                    ? `Used 2nd Interpretation: ${resData.confirmedDate}` 
+                    : 'Used 2nd Interpretation (MM/DD)';
+                } else if (resType === 'confirm') {
+                  actionTaken = resData.confirmedDate 
+                    ? `Confirmed Date: ${resData.confirmedDate}` 
+                    : 'Confirmed Date';
+                } else if (resType === 'accept_rounded') {
+                  actionTaken = resData.suggested 
+                    ? `Accepted Rounded Amount: ${resData.suggested}` 
+                    : 'Accepted Rounded Amount';
+                } else if (resType === 'accept') {
+                  if (resData.cleanedValue) actionTaken = `Accepted Cleaned Value: ${resData.cleanedValue}`;
+                  else if (resData.selectedUserId) {
+                    // Try to show the mapped user's name if we had it, but we only have ID here.
+                    actionTaken = `Accepted Match`;
+                  }
+                  else actionTaken = 'Accepted As Is';
+                } else if (resType === 'reject') {
+                  actionTaken = 'Rejected (Skipped)';
+                } else if (resType === 'assign') {
+                  actionTaken = resData.participantName 
+                    ? `Assigned to ${resData.participantName}` 
+                    : 'Assigned to Participant';
+                } else if (resType === 'custom') {
+                  if (resData.customPayer) actionTaken = `Assigned Payer: ${resData.customPayer}`;
+                  else if (resData.useAs) actionTaken = `Used custom value: ${resData.useAs}`;
+                  else if (resData.correctedAmount) actionTaken = `Entered Custom Amount: ${resData.correctedAmount}`;
+                  else if (resData.confirmedDate) actionTaken = `Entered Custom Date: ${resData.confirmedDate}`;
+                  else actionTaken = 'Used Custom Value';
+                } else if (resType === 'map') {
+                  actionTaken = 'Mapped to Existing User';
+                } else if (resType === 'create') {
+                  actionTaken = resData.newMemberName 
+                    ? `Created New User: ${resData.newMemberName}` 
+                    : 'Created New User';
+                } else if (resType === 'keep_first') {
+                  actionTaken = `Kept Row ${resData.keepRowNumber || 'First'}`;
+                } else if (resType === 'keep_second') {
+                  actionTaken = `Kept Row ${resData.keepRowNumber || 'Second'}`;
+                } else if (resType === 'auto-resolved (clean)') {
+                  actionTaken = 'Auto-Resolved (Clean)';
+                } else if (resType === 'pending') {
+                  actionTaken = 'Pending Resolution';
+                } else if (resType) {
+                  actionTaken = resType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                } else {
+                  actionTaken = '—';
+                }
 
                 return (
                   <tr
                     key={idx}
                     className="border-b border-[#1e293b] hover:bg-[rgba(255,255,255,0.02)] transition"
                   >
-                    <td className="p-3 font-mono text-xs text-[var(--color-text-muted)]">R{r.rowNumber}</td>
-                    <td className="p-3 text-xs max-w-48 truncate">{rawData.description || '—'}</td>
+                    <td className="p-3 font-mono text-xs text-[var(--color-text-muted)]">
+                      {r.allRowNumbers.length > 1 ? `Rows ${r.allRowNumbers.join(', ')}` : `R${r.allRowNumbers[0]}`}
+                    </td>
+                    <td className="p-3 text-xs font-mono">
+                      {originalValDisplay}
+                    </td>
                     <td className="p-3 text-xs max-w-48">
                       <span className="font-mono text-[10px] px-1.5 py-0.5 rounded"
                         style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
-                        {(r.detectedIssue || '').split(' — ')[0]}
+                        {(r.detectedIssue || 'None').split(' — ')[0]}
                       </span>
                     </td>
-                    <td className="p-3 text-xs capitalize">{decisionLabel}</td>
-                    <td className="p-3 text-xs font-mono">
-                      {rawData.amount ? `${rawData.currency || ''} ${rawData.amount}` : '—'}
-                    </td>
+                    <td className="p-3 text-xs capitalize">{actionTaken}</td>
                     <td className="p-3">
                       <span
                         className="text-xs px-2 py-0.5 rounded-full font-medium"
