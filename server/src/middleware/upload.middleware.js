@@ -2,6 +2,8 @@ const multer = require('multer');
 const path = require('path');
 const env = require('../config/env');
 
+const fs = require('fs');
+
 /**
  * Multer configuration for CSV file uploads.
  * Stores files in the configured upload directory.
@@ -9,7 +11,11 @@ const env = require('../config/env');
  */
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.resolve(__dirname, '../../', env.UPLOAD_DIR));
+    const uploadDir = path.resolve(__dirname, '../../', env.UPLOAD_DIR || 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
