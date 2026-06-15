@@ -241,6 +241,9 @@ const importsService = {
       }
 
       return imp;
+    }, {
+      maxWait: 15000,
+      timeout: 120000,
     });
 
     await logActivity(prisma, {
