@@ -158,7 +158,7 @@ function parseDate(dateStr, rowNumber) {
 /**
  * Parse an amount string. Returns { amount: number|null, anomalies: [] }
  */
-function parseAmount(amountStr) {
+function parseAmount(amountStr, rawRow = {}) {
   const anomalies = [];
   let cleaned = (amountStr || '').trim();
 
@@ -218,7 +218,7 @@ function parseAmount(amountStr) {
 
   // Check negative
   if (num < 0) {
-    const desc = (row.description || '').toLowerCase();
+    const desc = (rawRow.description || '').toLowerCase();
     const isRefundLabeled = desc.includes('refund') || desc.includes('return') || desc.includes('credit') || desc.includes('cashback') || desc.includes('reimburse');
 
     anomalies.push({

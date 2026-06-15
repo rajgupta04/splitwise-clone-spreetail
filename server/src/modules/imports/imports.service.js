@@ -126,7 +126,7 @@ const importsService = {
     // Phase 1: Parse each row
     const parsedRows = csvRows.map((raw) => {
       const dateResult = detectors.parseDate(raw.date, raw._rowNumber);
-      const amountResult = detectors.parseAmount(raw.amount);
+      const amountResult = detectors.parseAmount(raw.amount, raw);
       return {
         rowNumber: raw._rowNumber,
         raw,
